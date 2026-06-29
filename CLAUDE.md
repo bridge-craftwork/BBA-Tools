@@ -98,7 +98,7 @@ ssh root@146.190.135.172 'journalctl -u bba-server -n 50 --no-pager'
 ssh root@146.190.135.172 'bash -s' << 'REMOTE'
 systemctl stop bba-server
 cd /opt/bba-server
-curl -sL https://github.com/Rick-Wilson/BBA-Tools/releases/download/TAG/bba-TAG-linux-x64.tar.gz | tar xz
+curl -sL https://github.com/bridge-craftwork/BBA-Tools/releases/download/TAG/bba-TAG-linux-x64.tar.gz | tar xz
 systemctl start bba-server
 REMOTE
 ```

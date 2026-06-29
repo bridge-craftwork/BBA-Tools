@@ -21,7 +21,7 @@ jobs:
       - name: Checkout Bridge-Parsers (for CLI PBN/hand analysis)
         uses: actions/checkout@v4
         with:
-          repository: rick-wilson/Bridge-Parsers
+          repository: bridge-craftwork/Bridge-Parsers
           path: Bridge-Parsers
 
       - name: Setup Rust
@@ -57,7 +57,7 @@ jobs:
       - name: Checkout Bridge-Parsers
         uses: actions/checkout@v4
         with:
-          repository: rick-wilson/Bridge-Parsers
+          repository: bridge-craftwork/Bridge-Parsers
           path: Bridge-Parsers
 
       - name: Setup Rust
@@ -93,7 +93,7 @@ jobs:
       - name: Checkout Bridge-Parsers
         uses: actions/checkout@v4
         with:
-          repository: rick-wilson/Bridge-Parsers
+          repository: bridge-craftwork/Bridge-Parsers
           path: Bridge-Parsers
 
       - name: Setup Rust
@@ -168,7 +168,7 @@ jobs:
           Run from Terminal:
             /Applications/Bridge\ Utilities/bba-cli --help
 
-          Source: https://github.com/Rick-Wilson/BBA-Tools
+          Source: https://github.com/bridge-craftwork/BBA-Tools
           EOF
 
       - name: Create Bridge Utilities drag-target alias
@@ -238,7 +238,7 @@ jobs:
       - name: Checkout Bridge-Parsers
         uses: actions/checkout@v4
         with:
-          repository: rick-wilson/Bridge-Parsers
+          repository: bridge-craftwork/Bridge-Parsers
           path: Bridge-Parsers
 
       - name: Setup Rust

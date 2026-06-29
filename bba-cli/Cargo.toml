@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Rick Wilson"]
 description = "Bridge Bidding Analyzer CLI - generates auctions for PBN files using native EPBot engine"
 license = "MIT"
-repository = "https://github.com/Rick-Wilson/BBA-Tools"
+repository = "https://github.com/bridge-craftwork/BBA-Tools"
 keywords = ["bridge", "bidding", "pbn", "card-game"]
 categories = ["command-line-utilities", "games"]
 

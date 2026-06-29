@@ -103,7 +103,7 @@ jobs:
         if: steps.version.outputs.exists == 'false'
         uses: actions/checkout@v4
         with:
-          repository: rick-wilson/dealer3
+          repository: bridge-craftwork/dealer3
           path: dealer3
 
       - name: Setup .NET
