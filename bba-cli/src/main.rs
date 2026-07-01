@@ -173,5 +173,18 @@ fn main() -> Result<()> {
         info!("Output written to {:?}", args.output);
     }
 
+    // Fail loudly when nothing bid. Previously bba-cli exited 0 even if every
+    // deal errored, so a pipeline couldn't tell a healthy run from a dead engine
+    // and an empty bba could get committed by mistake. A run that processed deals
+    // but produced zero auctions is a failure — most often EPBot construction
+    // failing on every deal (see the overflow bug in CLAUDE.md).
+    if stats.auctions_generated == 0 {
+        anyhow::bail!(
+            "No auctions generated ({} deals processed, {} errors) — refusing to report success",
+            stats.deals_processed,
+            stats.errors
+        );
+    }
+
     Ok(())
 }

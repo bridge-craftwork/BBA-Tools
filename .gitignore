@@ -7,6 +7,8 @@ obj/
 # Rust
 **/target/
 **/*.rs.bk
+# Local dev cargo config (holds [patch] overrides to sibling checkouts)
+/.cargo/
 # epbot-core is a library consumed only via path by the binary crates;
 # its lockfile is unused, the binaries' own lockfiles govern.
 epbot-core/Cargo.lock
