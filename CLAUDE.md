@@ -22,11 +22,20 @@ From Edward Piwowar's NativeAOT build. Located in `epbot-libs/`:
 - `macos/arm64/libEPBot.dylib`
 - `windows/x64/EPBot.dll`, `windows/arm64/EPBot.dll` (untested — proper AOT builds first shipped in v2.2.4)
 
-Current build: EPBot 8740, patched build dated 2026-05-03 (Edward), shipped in BBA-Tools v2.2.4. See "EPBot 25-day uptime crash" below for context on what that patch is.
+Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (committed 2026-05-04). The "8740" label and file dates are NOT reliable identifiers — an earlier 2026-05-03 build carries the same label and leaked into installs. Identify the patched build by sha256 (fingerprints under "EPBot 25-day uptime crash" below). See that section for what the patch fixes.
 
 ### EPBot 25-day uptime crash
 
-**Status as of 2026-05-04: fix shipped in v2.2.4, verification window 2026-05-29 ~21:18 UTC.** Until that date passes without recurrence, treat the bug as live.
+**Status as of 2026-07-01: RESOLVED — the v2.2.4 patch works; the recurrence was a stale install, not a patch failure.** David's Mac (and Rick's, found the same day) was still running a pre-patch **2026-05-03** macOS dylib (`e82e4471…`) in `/Applications/Bridge Utilities/`; it was never bumped to the patched **2026-05-04** build (`ded470bf…`). Past ~25 days uptime that old dylib overflows on every `epbot_create()`. David's Mac was at 29 days uptime; clock changes never helped because the overflow keys off *uptime*, not wall-clock. The Linux droplet, by contrast, was correctly updated to the patched `.so` on 2026-05-04 and has run clean.
+
+**Proof the patch works.** The droplet's loaded `libEPBot.so` is a sha256-exact match to the repo's patched build (`e0e48200…`, 3,929,144 B). It sat at 57 days OS uptime through its 24.855-day danger window (~2026-05-29) and the entire negative-tick window (late May–~2026-06-23) with **zero** overflow rows in the auction audit logs, and it bids live today. That is exactly the confirmation the old "watch 2026-05-29" plan was waiting for.
+
+**Authoritative fingerprints — identify a build by sha256, NOT by the "8740" label or file date (all report 8740):**
+- macOS arm64 patched `libEPBot.dylib`: `ded470bf10e1f65f2d775c8b6860cde4c6ebf76b20610d3074971278173d8ca5` (3,741,088 B)
+- Linux x64 patched `libEPBot.so`: `e0e482000de4c65cda1415a18475aaa1a31037e27d4c0a0ebe2aa642f9abd39f` (3,929,144 B)
+- **Known-bad** stale macOS build (2026-05-03, the one found in installs): `e82e44715ac5b9c259bf1d1b0f33048ca5d7758d1437815b1b5662628a674301` (3,726,288 B)
+
+**Fix for an affected machine:** replace the install's `libEPBot.dylib` with the patched build (sha `ded470bf…`) — no reboot needed, the patched build handles the overflow at any uptime. Rebooting is only a stopgap for a still-unpatched dylib.
 
 **Root cause.** EPBot's NativeAOT C# code uses `GetTickCount()` (Win32 DWORD, `uint`, ms since system boot) to track lead-bid timing, but stores it in a private field `m_Lead_Tick_Count` typed as `int` and accesses it via unchecked casts. After **~24.855 days of system uptime** (`Int32.MaxValue` ms), the cast yields a large negative number. Subsequent `Math.Abs(num3 - m_Lead_Tick_Count)` can hit `Math.Abs(Int32.MinValue)` — which has no positive `Int32` representation and throws `OverflowException`. The exception bubbles out of `epbot_create()` as null, surfaces in our Rust as `EPBotError::CreateFailed("...Arithmetic operation resulted in an overflow.")`.
 
@@ -36,17 +45,21 @@ The proper fix (Edward's patch) is to type the field as `uint`, drop the casts, 
 - **Droplet, 2026-04-09** — first observed crash. Initially attributed to a coincident `libssl3` update; we now think the package update was incidental and the trigger was simply uptime crossing the threshold. Reboot resolved.
 - **David's Mac, 2026-05-03** — same overflow on his pipeline. Mac had been up >25 days. Reboot resolved; ran fine after.
 - **Droplet, 2026-05-04 22:17 UTC** — recurred after exactly 24.872 days uptime (boot was 2026-04-10 01:46 UTC; threshold is 24.855 days). Detected by Rick when bridge-classroom started erroring; first user-reported error came in within ~25 minutes of the threshold being crossed. Reboot at ~22:46 restored service. New uptime clock started.
+- **David's Mac, 2026-07-01** — bba-cli failed at `epbot_create()` on every call (0 auctions, empty bba committed). Mac was at 29 days uptime. **Root cause was a stale install, not a v2.2.4 defect:** his `/Applications/Bridge Utilities/libEPBot.dylib` was the pre-patch 2026-05-03 build (`e82e4471…`) — same as Rick's install, found stale the same day. Clock changes (May 5 / June 1 / July 1, all identical) didn't help because the overflow is uptime-based, not wall-clock; there is no license code. Fixed by swapping in the patched `ded470bf…` dylib — no reboot. Also surfaced bba-cli issue #2: the stale May 3 bba-cli exited 0 on 0 auctions, so the pipeline silently committed empty output (now fixed by the `auctions_generated == 0` guard).
 
-**Verification plan for v2.2.4.** Edward's patched library has the same version label (8740) as the previous build but materially different bytes across all platforms (macOS +36 KB, Linux +40 KB, Windows ~+2.7 MB — the Windows jump also reflects switching from a legacy COM wrapper to a real AOT build). We can't test the timing fix locally without waiting 25 days or time-shifting a machine. **Watch the droplet on 2026-05-29 ~21:18 UTC.** If it survives that window without overflow, the patch landed. If it crashes, Edward needs another round.
+**How it was verified.** Edward's patched library has the same version label (8740) as the previous build but materially different bytes across all platforms (macOS +36 KB, Linux +40 KB, Windows ~+2.7 MB — the Windows jump also reflects switching from a legacy COM wrapper to a real AOT build). We couldn't test the timing fix locally without a machine >25 days up (time-shifting the wall clock does nothing — the bug is uptime-based). The droplet supplied the proof: its patched Linux `.so` is sha-verified and survived the full danger + negative-tick window with zero overflows (see Status above). The macOS patched dylib (`ded470bf…`) is the same-batch sibling; David's 29-day Mac provides the past-threshold macOS confirmation once he swaps to it.
 
-**Diagnostic clue if it recurs.** The failure is *partial*: a single `epbot_create()` call (e.g., `bba-cli`'s startup version probe at [main.rs:99](bba-cli/src/main.rs#L99)) often succeeds — only subsequent calls into the lead-tick code path crash. So a normal-looking `BBA-CLI vX (EPBot 8740)` startup line **does NOT** mean EPBot is healthy; you have to test an actual auction. After deploys, always run a real `POST /api/auction/generate` against the droplet, not just the health endpoint.
+**Diagnostic clue if it recurs.** The failure was originally observed as *partial*: on the droplet near the threshold, a single `epbot_create()` call (e.g., `bba-cli`'s startup version probe at [main.rs:99](bba-cli/src/main.rs#L99)) often succeeded — only subsequent calls into the lead-tick code path crashed. David's 2026-07-01 case (stale unpatched dylib, 29 days uptime) is the opposite: the probe itself fails, i.e. *every* create overflows. Both are consistent with the same uptime overflow — "first call succeeds" is a near-threshold timing coincidence, whereas well past the threshold the tick delta is negative on every call. Bottom line: a normal-looking `BBA-CLI vX (EPBot 8740)` startup line **does NOT** mean EPBot is healthy; you have to test an actual auction. After deploys, always run a real `POST /api/auction/generate` against the droplet, not just the health endpoint. Note also that bba-cli now exits non-zero when 0 auctions are generated ([main.rs](bba-cli/src/main.rs), `auctions_generated == 0` guard), so a dead engine surfaces as a failed pipeline step rather than an empty bba.
 
 **Don't be fooled by the bbsa context.** The error message often appears alongside convention card filenames in surrounding log lines, which makes it look like a bbsa parsing issue. It isn't — `epbot_create()` runs *before* any convention is loaded ([lib.rs:420-433](epbot-core/src/lib.rs#L420-L433)).
 
-**Workaround order if v2.2.4 doesn't fix it:**
-1. Reboot the affected machine. Resets `GetTickCount()` to 0; gives ~25 fresh days.
-2. Schedule monthly reboots if the bug stays unfixed upstream (cron-driven, in a low-traffic window).
-3. Patch the AOT source ourselves if Edward stops responding — fix is small and well-understood.
+**Install hygiene (the 2026-07-01 lesson).** The droplet got the patched `.so` on 2026-05-04, but the macOS `/Applications/Bridge Utilities/` install was never bumped from the 2026-05-03 build — bridge-wrangler and pbn-to-pdf there were refreshed 2026-06-19, yet the `bba-cli` + `libEPBot.dylib` pair was skipped and sat stale for ~2 months. When shipping an EPBot update, update **every** install target (droplet + each Mac running the pipeline) and verify each dylib/so by **sha256** against the fingerprints above — not by version label or file date, since both builds report "8740". The install pipeline references `/Applications/Bridge Utilities/bba-cli` (see `Practice-Bidding-Scenarios/build-scripts-mac/config.py`); the binary loads the dylib sitting next to it via `@executable_path` rpath, so the two must be updated together. A healthy-looking `BBA-CLI vX (EPBot 8740)` startup line does **not** prove the dylib is patched.
+
+**Workaround order if a machine is still on an unpatched dylib:**
+1. Best fix: drop in the patched dylib (sha `ded470bf…` on macOS). Works at any uptime, no reboot.
+2. Reboot the affected machine. Resets `GetTickCount()` to 0; gives ~25 fresh days. Only a stopgap.
+3. Schedule monthly reboots if a machine somehow can't be updated (cron-driven, low-traffic window).
+4. Patch the AOT source ourselves if Edward stops responding — fix is small and well-understood.
 
 ## BBA Server (Production)
 
