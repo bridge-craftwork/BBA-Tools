@@ -369,6 +369,7 @@ pub fn generate_auction_with_prefix(
         ew_card,
         auction_prefix,
         false,
+        false,
     )
 }
 
@@ -379,6 +380,10 @@ pub fn generate_auction_with_prefix(
 /// EPBot 8740): ~0.22 ms per board, ~3.6% of total per-deal latency. Cheap
 /// enough to default on, but kept opt-in so callers control when the extra
 /// FFI call happens.
+///
+/// `all_meanings` collects `meaning`/`meaning_extended` for *every* bid rather
+/// than only alertable ones. Off by default: it roughly triples the size of a
+/// serialized auction and most callers only care about alerts.
 pub fn generate_auction_with_options(
     pbn: &str,
     dealer: i32,
@@ -388,8 +393,9 @@ pub fn generate_auction_with_options(
     ew_card: Option<&ConventionCard>,
     auction_prefix: Option<&[String]>,
     single_dummy: bool,
+    all_meanings: bool,
 ) -> AuctionResult {
-    match generate_auction_inner(pbn, dealer, vulnerability, scoring, ns_card, ew_card, auction_prefix, single_dummy) {
+    match generate_auction_inner(pbn, dealer, vulnerability, scoring, ns_card, ew_card, auction_prefix, single_dummy, all_meanings) {
         Ok((bids, analysis)) => AuctionResult {
             bids,
             success: true,
@@ -414,6 +420,7 @@ fn generate_auction_inner(
     ew_card: Option<&ConventionCard>,
     auction_prefix: Option<&[String]>,
     single_dummy: bool,
+    all_meanings: bool,
 ) -> Result<(Vec<BidInfo>, Option<SingleDummyAnalysis>), EPBotError> {
     let (_first_seat, hands) = parse_pbn_deal(pbn)?;
 
@@ -436,7 +443,7 @@ fn generate_auction_inner(
     }
 
     // Use a closure-like pattern to ensure cleanup on any error
-    let bids_result = run_auction(&players, &hands, dealer, vulnerability, scoring, ns_card, ew_card, &empty_alert, auction_prefix);
+    let bids_result = run_auction(&players, &hands, dealer, vulnerability, scoring, ns_card, ew_card, &empty_alert, auction_prefix, all_meanings);
 
     let final_result = match bids_result {
         Ok(bids) => {
@@ -588,6 +595,7 @@ fn run_auction(
     ew_card: Option<&ConventionCard>,
     empty_alert: &CString,
     auction_prefix: Option<&[String]>,
+    all_meanings: bool,
 ) -> Result<Vec<BidInfo>, EPBotError> {
     // Initialize each player
     for i in 0..4 {
@@ -683,6 +691,13 @@ fn run_auction(
         let alert_rc = unsafe { ffi::epbot_get_info_alerting(players[partner_pos as usize], current_pos) };
         if alert_rc == 1 {
             is_alert = true;
+        }
+
+        // EPBot fills the info block on every bid, so a description is
+        // available for natural bids too — but by default we only pull it for
+        // alertable ones, which is all the browser extensions need. Callers
+        // that want the full picture opt in via `all_meanings`.
+        if is_alert || all_meanings {
             let mut buf = [0 as c_char; 1024];
             let meaning_rc = unsafe {
                 ffi::epbot_get_info_meaning(

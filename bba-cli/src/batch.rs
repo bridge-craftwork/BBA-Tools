@@ -218,6 +218,7 @@ pub fn process_pbn_file(
             Some(&ew_card),
             auction_prefix,
             config.single_dummy,
+            false,
         );
 
         if result.success {
