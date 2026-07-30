@@ -178,18 +178,22 @@ Browser extensions send `X-Client-Info: ext=BBOAlert|PBSforBBO; browser=Chrome|F
 
 GitHub Actions (`.github/workflows/build.yml`) builds all platforms on push to main. Tagged releases (`v*`) create GitHub Releases.
 
-### Local macOS build
+### Local builds — use `./dev-build.sh`, not bare cargo
+
+**Use `./dev-build.sh` for local development builds, not bare cargo.** `bba-cli` depends on the sibling `Bridge-Parsers`, which pulls `bridge-types` and `bridge-encodings` as git dependencies, with gitignored `[patch]` overrides in `.cargo/config.toml` redirecting them to the local checkouts in `../`. Cargo never lets a `[patch]` override an existing `Cargo.lock` pin, so bare `cargo build` silently compiles the GitHub revisions of those crates instead of your local edits — and if the patches do take effect, they rewrite `Cargo.lock` with local-path entries that must never be committed (CI has no sibling checkouts). The script keeps a separate local lock per crate (`.cargo/dev-<crate>.lock`), swaps it in around the cargo call, verifies each patched crate resolved to a local checkout, and leaves the committed `Cargo.lock` untouched. It also exports `DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH` for `epbot-libs`, without which `cargo test` and `cargo run` abort at load time with `Library not loaded: @rpath/libEPBot.dylib`.
+
+This repo is not a single cargo workspace — each crate carries its own lock — so the script takes the crate as its first argument, or infers it from the current directory:
 
 ```bash
-# CLI
-cd bba-cli && cargo build --release
-
-# Server
-cd bba-server && cargo build --release
-
-# Run server locally
-DYLD_LIBRARY_PATH=../epbot-libs/macos/arm64 cargo run
+./dev-build.sh bba-cli build --release     # CLI
+./dev-build.sh bba-server build --release  # server
+./dev-build.sh epbot-core test             # any cargo subcommand + args
+cd bba-cli && ../dev-build.sh test         # crate inferred from $PWD
+./dev-build.sh bba-server run              # run server locally
+cargo fmt --check                          # no dependency resolution; bare cargo is fine
 ```
+
+For CI-parity builds (pre-commit checks, release verification) use `./dev-build.sh --ci <crate> test` — it temporarily disables the local patches and builds with the committed lock's git pins. **Avoid bare cargo for anything that resolves dependencies** (build/test/check/run): with the patches present, a same-version patch is applied immediately and silently rewrites `Cargo.lock` to local-path entries, while a version mismatch makes the patches silently ignored — both wrong. For `bba-server` and `epbot-core` the patches are inert, and bare cargo instead appends `[[patch.unused]]` entries to their locks. The committed `Cargo.lock` must always pin `git+https://` sources for the internal crates; never commit a lock where those entries have lost their `source =` lines. (`epbot-core/Cargo.lock` is gitignored — the binaries' locks govern.)
 
 ### Dependencies
 
