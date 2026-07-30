@@ -4,7 +4,7 @@
 //! Generates bridge auctions for the BBOAlert browser extension.
 
 use axum::extract::State;
-use axum::http::{HeaderMap, Method, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
@@ -80,23 +80,41 @@ async fn main() {
         epbot_version,
     };
 
-    // CORS — allow BridgeBase.com, Bridge Classroom, and localhost
+    // CORS — allow BridgeBase.com, Bridge Classroom, and localhost dev servers.
+    //
+    // The localhost entries are a RANGE (5173-5199 vite dev, 4173-4199 vite
+    // preview), not the two default ports. Vite takes 5173 and silently
+    // INCREMENTS when it's busy, and there are seven Vite repos in this
+    // workspace, none pinning a port — so a second dev server lands on 5174,
+    // falls outside a two-port list, and every auction request is CORS-rejected
+    // in ~20ms. That reads as "BBA stalls mid-auction" and cost real debugging
+    // time twice (2026-07-30). The Bridge-Classroom lane2 worktree sits on 5174
+    // permanently and had never worked against this service.
+    //
+    // Widening is safe: a localhost origin is only reachable from the
+    // developer's own machine. Kept as an exact-match LIST rather than a
+    // predicate so the production origins keep their strict equality.
+    let mut allowed: Vec<HeaderValue> = vec![
+        "https://www.bridgebase.com".parse().unwrap(),
+        "http://www.bridgebase.com".parse().unwrap(),
+        "https://bridgebase.com".parse().unwrap(),
+        "https://bridge-classroom.com".parse().unwrap(),
+        "https://www.bridge-classroom.com".parse().unwrap(),
+        "https://bridge-classroom.org".parse().unwrap(),
+        "https://www.bridge-classroom.org".parse().unwrap(),
+        "https://game-analysis.bridge-classroom.com".parse().unwrap(),
+        "https://game-analysis.bridge-classroom.org".parse().unwrap(),
+        "http://localhost:3000".parse().unwrap(),
+        "http://localhost:3001".parse().unwrap(),
+    ];
+    for host in ["localhost", "127.0.0.1"] {
+        for port in (5173..=5199).chain(4173..=4199) {
+            allowed.push(format!("http://{host}:{port}").parse().unwrap());
+        }
+    }
+
     let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::list([
-            "https://www.bridgebase.com".parse().unwrap(),
-            "http://www.bridgebase.com".parse().unwrap(),
-            "https://bridgebase.com".parse().unwrap(),
-            "https://bridge-classroom.com".parse().unwrap(),
-            "https://www.bridge-classroom.com".parse().unwrap(),
-            "https://bridge-classroom.org".parse().unwrap(),
-            "https://www.bridge-classroom.org".parse().unwrap(),
-            "https://game-analysis.bridge-classroom.com".parse().unwrap(),
-            "https://game-analysis.bridge-classroom.org".parse().unwrap(),
-            "http://localhost:3000".parse().unwrap(),
-            "http://localhost:3001".parse().unwrap(),
-            "http://localhost:5173".parse().unwrap(),
-            "http://localhost:4173".parse().unwrap(),
-        ]))
+        .allow_origin(AllowOrigin::list(allowed))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers([
             "content-type".parse().unwrap(),
