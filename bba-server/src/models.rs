@@ -16,6 +16,11 @@ pub struct AuctionRequest {
     /// because it adds latency.
     #[serde(default, alias = "singleDummy")]
     pub single_dummy: bool,
+    /// When true, `meanings[]` carries `meaning`/`meaningExtended` for every
+    /// bid instead of only alertable ones. Off by default — it roughly triples
+    /// the response size, and the browser extensions only render alerts.
+    #[serde(default, alias = "includeAllMeanings")]
+    pub include_all_meanings: bool,
     /// Optional PBN [Board] number, used to derive the board-id hash's
     /// `board_extension` nibble when `singleDummy` is true. Defaults to 1.
     #[serde(default, alias = "boardNumber")]

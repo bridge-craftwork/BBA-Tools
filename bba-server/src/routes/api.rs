@@ -122,6 +122,7 @@ pub async fn generate_auction(
             let scenario_clone = request.scenario.clone();
             let auction_prefix = request.auction_prefix.clone();
             let single_dummy = request.single_dummy;
+            let all_meanings = request.include_all_meanings;
 
             let result = tokio::task::spawn_blocking(move || {
                 epbot_core::generate_auction_with_options(
@@ -133,6 +134,7 @@ pub async fn generate_auction(
                     Some(&ew_card),
                     auction_prefix.as_deref(),
                     single_dummy,
+                    all_meanings,
                 )
             })
             .await
