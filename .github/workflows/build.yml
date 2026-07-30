@@ -37,6 +37,28 @@ jobs:
           cd BBA-Tools/bba-server
           cargo build --release
 
+      # Tests run on this job only — they are platform-independent, and one
+      # run is enough to catch regressions without quadrupling CI time.
+      #
+      # --include-ignored pulls in the two 500-board fixture tests. They are
+      # #[ignore]d for local ergonomics (~4s), and skipping them here is how
+      # their goldens went stale for three months unnoticed: the goldens had
+      # been generated against the pre-patch EPBot dylib and no longer matched
+      # the library we ship.
+      #
+      # LD_LIBRARY_PATH is needed by epbot-core's tests, which link libEPBot
+      # directly and otherwise abort before main(). bba-cli's smoke test sets
+      # the loader path itself for the binary it spawns.
+      - name: Test
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/BBA-Tools/epbot-libs/linux/x64
+        run: |
+          for crate in epbot-core bba-cli bba-server; do
+            echo "::group::cargo test $crate"
+            (cd "BBA-Tools/$crate" && cargo test --release -- --include-ignored)
+            echo "::endgroup::"
+          done
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
