@@ -67,7 +67,10 @@ async fn main() {
         &config.default_ew_card,
     );
 
-    let audit_log = AuditLogService::new(&config.log_path, "2.0.2");
+    // From Cargo.toml, not a literal — this value lands in the audit CSV's
+    // Version column, and a hardcoded copy silently kept reporting 2.0.2
+    // after the crate was bumped to 2.1.0.
+    let audit_log = AuditLogService::new(&config.log_path, env!("CARGO_PKG_VERSION"));
 
     let state = AppState {
         semaphore: Arc::new(Semaphore::new(config.max_concurrency)),
@@ -123,7 +126,7 @@ async fn main() {
         .with_state(state.clone());
 
     let addr = format!("{}:{}", state.config.host, state.config.port);
-    info!("BBA Server v2.0.2 starting on {}", addr);
+    info!("BBA Server v{} starting on {}", env!("CARGO_PKG_VERSION"), addr);
     info!(
         "EPBot version: {}, max concurrency: {}",
         epbot_version, state.config.max_concurrency
