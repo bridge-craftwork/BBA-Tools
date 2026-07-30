@@ -9,7 +9,7 @@ use bridge_parsers::{Board, Deal, Direction};
 use epbot_core::bba_hash::{self, HandSuits};
 use epbot_core::score::{self, Strain};
 use epbot_core::{generate_auction_with_options, ConventionCard, Scoring};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
@@ -24,8 +24,10 @@ pub struct ProcessingStats {
 /// Configuration for PBN output formatting
 pub struct OutputConfig {
     pub event: String,
-    pub ns_system_name: String,
-    pub ew_system_name: String,
+    /// `None` means "ask EPBot what the .bbsa's `System type` is called";
+    /// `Some` is an explicit CLI override.
+    pub ns_system_name: Option<String>,
+    pub ew_system_name: Option<String>,
     pub ns_conventions_path: String,
     pub ew_conventions_path: String,
     pub scoring: Scoring,
@@ -199,6 +201,12 @@ pub fn process_pbn_file(
     let ns_card = ConventionCard::from_content(&ns_content);
     let ew_card = ConventionCard::from_content(&ew_content);
 
+    // Resolve the BidSystem tag text once, before any deal is bid.
+    let system_names = SystemNames {
+        ns: resolve_system_name(config.ns_system_name.as_deref(), &ns_card, 0, "N-S"),
+        ew: resolve_system_name(config.ew_system_name.as_deref(), &ew_card, 1, "E-W"),
+    };
+
     // Process each deal
     let mut results = Vec::new();
 
@@ -235,10 +243,49 @@ pub fn process_pbn_file(
 
     if !dry_run {
         info!("Writing output to {:?}", output_path);
-        write_rich_pbn(output_path, &boards, &results, config)?;
+        write_rich_pbn(output_path, &boards, &results, config, &system_names)?;
     }
 
     Ok(stats)
+}
+
+/// Resolved `[BidSystemNS]`/`[BidSystemEW]` tag text for one run.
+struct SystemNames {
+    ns: String,
+    ew: String,
+}
+
+/// The BidSystem tag text for one side: an explicit CLI override when given,
+/// otherwise whatever EPBot calls the card's `System type`.
+///
+/// Before this was derived, both tags were hardcoded to "2/1GF - 2/1 Game
+/// Force", which mislabelled every SAYC, Polish Club, Precision and Acol card
+/// (issue #3).
+fn resolve_system_name(
+    cli_override: Option<&str>,
+    card: &ConventionCard,
+    side: i32,
+    label: &str,
+) -> String {
+    if let Some(name) = cli_override {
+        return name.to_string();
+    }
+    match card.system_name(side) {
+        Ok(name) => {
+            info!("{} bidding system: {}", label, name);
+            name
+        }
+        Err(e) => {
+            // Only reachable if EPBot itself is unusable, in which case the
+            // auctions fail too and the run exits non-zero. Emit no tag rather
+            // than an invented one.
+            warn!(
+                "Could not read the {} system name from EPBot ({}); omitting the BidSystem tag",
+                label, e
+            );
+            String::new()
+        }
+    }
 }
 
 /// Write PBN output matching BBA.exe format
@@ -247,6 +294,7 @@ fn write_rich_pbn(
     boards: &[Board],
     results: &[epbot_core::AuctionResult],
     config: &OutputConfig,
+    system_names: &SystemNames,
 ) -> Result<()> {
     let file = std::fs::File::create(path).context("Failed to create output PBN file")?;
     let mut writer = BufWriter::new(file);
@@ -334,8 +382,12 @@ fn write_rich_pbn(
             write_annotated_auction(&mut writer, &result.bids)?;
         }
 
-        writeln!(writer, "[BidSystemEW \"{}\"]", config.ew_system_name)?;
-        writeln!(writer, "[BidSystemNS \"{}\"]", config.ns_system_name)?;
+        if !system_names.ew.is_empty() {
+            writeln!(writer, "[BidSystemEW \"{}\"]", system_names.ew)?;
+        }
+        if !system_names.ns.is_empty() {
+            writeln!(writer, "[BidSystemNS \"{}\"]", system_names.ns)?;
+        }
 
         debug!("Game {}: written", idx + 1);
     }

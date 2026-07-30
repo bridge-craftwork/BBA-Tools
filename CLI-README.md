@@ -40,8 +40,8 @@ bba-cli --input <INPUT.pbn> --output <OUTPUT.pbn> --ns-conventions <NS.bbsa> --e
 | Argument | Short | Description |
 |----------|-------|-------------|
 | `--event <NAME>` | | Event name for the `[Event]` tag |
-| `--ns-system-name <NAME>` | | Bidding system name written to `[BidSystemNS]` |
-| `--ew-system-name <NAME>` | | Bidding system name written to `[BidSystemEW]` |
+| `--ns-system-name <NAME>` | | Override the `[BidSystemNS]` text. Defaults to the name EPBot reports for the N-S card's `System type`, so you rarely need this. |
+| `--ew-system-name <NAME>` | | Override the `[BidSystemEW]` text. Defaults to the name EPBot reports for the E-W card's `System type`. |
 | `--auction-prefix <BIDS>` | | Force the first N bids of every auction (whitespace-separated, e.g. `"1C Pass 1H Pass"`). Each token must be `Pass`, `X`, `XX`, or `{1-7}{C\|D\|H\|S\|NT}`. EPBot resumes normal bidding after the prefix. Mirrors the bba-server `auctionPrefix` field, so the CLI and server stay interchangeable for A/B testing. |
 | `--verbose` | `-v` | Enable verbose logging (repeat for debug, e.g. `-vv`) |
 | `--dry-run` | | Parse input but don't write output |
@@ -130,8 +130,15 @@ For each game record, bba-cli adds or updates:
 | `[Contract]` | Final contract (e.g., "3N", "4SX") |
 | `[Declarer]` | Declarer position (N/E/S/W) |
 | `[Play]` | Play section placeholder with opening leader |
-| `[BidSystemNS]` | NS bidding system name |
-| `[BidSystemEW]` | EW bidding system name |
+| `[BidSystemNS]` | NS bidding system, derived from the N-S card's `System type` |
+| `[BidSystemEW]` | EW bidding system, derived from the E-W card's `System type` |
+
+The two `[BidSystem*]` tags are read back from EPBot after the convention card
+is loaded, so they always name the system the bots actually bid: `System type`
+0 is 2/1GF, 1 is SAYC, 2 is Polish Club, 3 is Precision Club, 4 is Acol. A card
+that never sets `System type` inherits EPBot's default of 2/1GF. Each side is
+resolved independently, so a SAYC N-S facing a Precision E-W is labelled
+correctly on both. Pass `--ns-system-name`/`--ew-system-name` only to override.
 
 ### Alerts and Announcements
 

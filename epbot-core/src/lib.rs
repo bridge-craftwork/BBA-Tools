@@ -99,6 +99,45 @@ impl ConventionCard {
         Self { lines }
     }
 
+    /// The bidding-system name EPBot associates with this card, e.g.
+    /// `"Sayc - Standard American Yellow Card"`.
+    ///
+    /// The name is read back **from EPBot** after loading the card rather than
+    /// mapped from a table here, so it always agrees with the system the bots
+    /// actually bid. EPBot's own numbering is 0 = 2/1GF, 1 = SAYC, 2 = Polish
+    /// Club, 3 = Precision Club, 4 = Acol; anything else reports "Not defined".
+    /// A card with no `System type` line inherits EPBot's default, which is 0.
+    ///
+    /// Creates and destroys a throwaway instance, so call it once per card and
+    /// keep the result — not per deal.
+    pub fn system_name(&self, side: i32) -> Result<String, EPBotError> {
+        let instance = unsafe { ffi::epbot_create() };
+        if instance.is_null() {
+            return Err(EPBotError::CreateFailed(get_last_error()));
+        }
+
+        let result = (|| {
+            self.apply_to(instance, side)?;
+            let mut buf = [0 as c_char; 512];
+            let rc = unsafe {
+                ffi::epbot_system_name(instance, side, buf.as_mut_ptr(), buf.len() as i32)
+            };
+            if rc != ffi::OK {
+                return Err(EPBotError::FfiError {
+                    code: rc,
+                    message: format!("epbot_system_name(side {side}) failed"),
+                });
+            }
+            Ok(unsafe { CStr::from_ptr(buf.as_ptr()) }
+                .to_str()
+                .unwrap_or("")
+                .to_string())
+        })();
+
+        unsafe { ffi::epbot_destroy(instance) };
+        result
+    }
+
     /// Load conventions into an EPBot instance for the given side (0=NS, 1=EW).
     /// Mirrors the C# LoadConventions logic from EPBotService.cs.
     fn apply_to(&self, instance: *mut c_void, side: i32) -> Result<(), EPBotError> {
@@ -818,5 +857,45 @@ mod tests {
         let content = "# Comment\nSystem type = 5\nOpponent type = 0\nSMOLEN = 1\n; another comment\nGarbage Stayman = true\nUnused = false\n";
         let card = ConventionCard::from_content(content);
         assert_eq!(card.lines.len(), 7);
+    }
+
+    /// The `[BidSystemNS]`/`[BidSystemEW]` tags bba-cli writes come from this,
+    /// so a regression here silently mislabels every generated PBN (issue #3).
+    /// EPBot's numbering: 0 = 2/1GF, 1 = SAYC, 2 = Polish Club, 3 = Precision
+    /// Club, 4 = Acol.
+    #[test]
+    fn test_system_name_follows_card_system_type() {
+        for (system_type, expected) in [
+            (0, "2/1GF"),
+            (1, "Sayc"),
+            (2, "WJ"),
+            (3, "PC"),
+            (4, "Acol"),
+        ] {
+            let card = ConventionCard::from_content(&format!("System type = {system_type}\n"));
+            let name = card
+                .system_name(0)
+                .unwrap_or_else(|e| panic!("system type {system_type}: {e}"));
+            assert!(
+                name.starts_with(expected),
+                "system type {system_type} should name a {expected} system, got {name:?}"
+            );
+        }
+    }
+
+    /// A card that never sets `System type` inherits EPBot's default rather
+    /// than reporting nothing, and that default is 2/1GF.
+    #[test]
+    fn test_system_name_defaults_to_two_over_one() {
+        let card = ConventionCard::from_content("SMOLEN = 1\n");
+        assert!(card.system_name(0).unwrap().starts_with("2/1GF"));
+    }
+
+    /// Both sides are resolved independently — the E-W tag must not inherit
+    /// the N-S card's system.
+    #[test]
+    fn test_system_name_is_per_side() {
+        let sayc = ConventionCard::from_content("System type = 1\n");
+        assert!(sayc.system_name(1).unwrap().starts_with("Sayc"));
     }
 }
