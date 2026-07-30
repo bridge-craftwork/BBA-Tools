@@ -95,7 +95,7 @@ The Rust bba-server runs on a DigitalOcean droplet, behind Caddy reverse proxy.
 | Public URL | `https://bba.harmonicsystems.com` |
 | Install path | `/opt/bba-server/` |
 | Systemd service | `bba-server` |
-| Reverse proxy | Caddy at `/opt/livekit/Caddyfile` |
+| Reverse proxy | Caddy at `/opt/edge/` (moved out of `/opt/livekit/` per platform ADR 0004) |
 | DNS | Cloudflare A record → droplet IP (DNS only, Caddy handles TLS) |
 | Also on droplet | LiveKit at `/opt/livekit/` (docker-compose) |
 
@@ -142,10 +142,16 @@ REMOTE
 scp bba-server/wwwroot/dashboard.html root@146.190.135.172:/opt/bba-server/wwwroot/
 ```
 
-**Restart Caddy** (if Caddyfile changes):
+**Caddyfile changes** live in the **bridge-craftwork-platform** repo
+(`edge/Caddyfile`), not here — that one Caddy fronts every hostname on the
+droplet. Edit there, merge, then from the Mac:
 ```bash
-ssh root@146.190.135.172 'cd /opt/livekit && docker compose restart caddy'
+./mac/scripts/sync.sh                             # in bridge-craftwork-platform
+ssh root@146.190.135.172 '/opt/edge/scripts/reload.sh'
 ```
+Note bba-server emits its **own** CORS headers (its Caddy stanza is a bare
+`reverse_proxy`), so a CORS change for this service belongs in
+`bba-server/src/main.rs`, not the Caddyfile.
 
 ### Maintenance & Updates
 
