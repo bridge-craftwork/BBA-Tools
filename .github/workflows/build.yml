@@ -200,7 +200,16 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          DMG=BBA-Tools-${{ github.ref_name }}.dmg
+          # github.ref_name carries a slash on PR builds ("<num>/merge") and on
+          # any branch named like "fix/thing". hdiutil reads that as a path into
+          # a directory that does not exist and dies with
+          # "hdiutil: create failed - No such file or directory", so flatten the
+          # ref before using it as a filename. Tags ("v2.3.0") are unaffected,
+          # which keeps the name the release job expects.
+          SAFE_REF="${GITHUB_REF_NAME//\//-}"
+          DMG="BBA-Tools-${SAFE_REF}.dmg"
+          echo "DMG_NAME=$DMG" >> "$GITHUB_ENV"
+
           # UDZO = compressed read-only DMG. Standard for distribution.
           hdiutil create -volname "BBA-Tools" \
             -srcfolder dmg-staging \
@@ -209,6 +218,16 @@ jobs:
           # Sign the .dmg itself, then notarize. Notarizing a .dmg
           # notarizes everything inside in one submission.
           codesign --force --sign "Developer ID Application" --timestamp "$DMG"
+
+          # Notarization is a round-trip to Apple's service and only matters
+          # for artifacts we actually ship. PRs still build and sign the DMG,
+          # which is what catches packaging breakage; tag and main builds get
+          # the full notarized, stapled article.
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "PR build — DMG built and signed; skipping notarization and stapling."
+            exit 0
+          fi
+
           xcrun notarytool submit "$DMG" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
@@ -225,7 +244,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bba-macos-arm64
-          path: BBA-Tools-${{ github.ref_name }}.dmg
+          path: ${{ env.DMG_NAME }}
 
   build-windows-x64:
     runs-on: windows-latest
