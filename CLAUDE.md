@@ -30,12 +30,22 @@ Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (
 
 **Proof the patch works.** The droplet's loaded `libEPBot.so` is a sha256-exact match to the repo's patched build (`e0e48200…`, 3,929,144 B). It sat at 57 days OS uptime through its 24.855-day danger window (~2026-05-29) and the entire negative-tick window (late May–~2026-06-23) with **zero** overflow rows in the auction audit logs, and it bids live today. That is exactly the confirmation the old "watch 2026-05-29" plan was waiting for.
 
-**Authoritative fingerprints — identify a build by sha256, NOT by the "8740" label or file date (all report 8740):**
+**Authoritative fingerprints — identify a build by sha256, NOT by the "8740" label or file date (all report 8740).**
+
+*Repo/source builds (as committed here — adhoc/linker-signed; stable across time):*
 - macOS arm64 patched `libEPBot.dylib`: `ded470bf10e1f65f2d775c8b6860cde4c6ebf76b20610d3074971278173d8ca5` (3,741,088 B)
 - Linux x64 patched `libEPBot.so`: `e0e482000de4c65cda1415a18475aaa1a31037e27d4c0a0ebe2aa642f9abd39f` (3,929,144 B)
-- **Known-bad** stale macOS build (2026-05-03, the one found in installs): `e82e44715ac5b9c259bf1d1b0f33048ca5d7758d1437815b1b5662628a674301` (3,726,288 B)
 
-**Fix for an affected machine:** replace the install's `libEPBot.dylib` with the patched build (sha `ded470bf…`) — no reboot needed, the patched build handles the overflow at any uptime. Rebooting is only a stopgap for a still-unpatched dylib.
+**IMPORTANT — installed macOS copies do NOT match the repo sha.** The release workflow re-signs the macOS dylib with Developer ID **plus a per-build trusted timestamp**, so a dylib installed from a `.dmg` has a *different* sha than `ded470bf…` — and it even differs release-to-release for byte-identical code. So:
+- Verify a **source/repo** dylib against `ded470bf…`.
+- Verify an **installed** dylib against **that specific release's** DMG asset (e.g. v2.2.5's shipped dylib is `aab58732ea7bd3e971080a727e558fd85c1bfc525be7a8759f54647d1a468ce0`), or against the bba-cli version string, or by behavior (does it bid past 25 days uptime). Do NOT expect an install to equal `ded470bf…`.
+- The Linux `.so` is *not* re-signed, so installs there do match `e0e48200…` (the droplet is a sha-exact match).
+
+*Known-bad unpatched macOS builds seen in the wild (each overflows past ~25 days; all came from direct hand-offs, never a signed release — the repo only ever held two macOS dylibs, the original `b434aa7a…` and the patched `ded470bf…`):*
+- `e82e44715ac5b9c259bf1d1b0f33048ca5d7758d1437815b1b5662628a674301` (3,726,288 B, 2026-05-03) — Rick's stale install
+- `39269d8dc86a87246ee7b038e2bef92a46eea3b0251924b98b61689027ef95d1` — David's stale install (found 2026-07-01; a fourth distinct binary, not in the repo)
+
+**Fix for an affected machine:** install the notarized `.dmg` from the matching release (drag bba-cli + bba-server + libEPBot.dylib into `/Applications/Bridge Utilities/`), or drop in the patched source dylib (`ded470bf…`). No reboot needed — the patched build handles the overflow at any uptime. Rebooting is only a stopgap for a still-unpatched dylib. Verify the install per the note above (release-DMG sha / version / behavior), not against `ded470bf…`.
 
 **Root cause.** EPBot's NativeAOT C# code uses `GetTickCount()` (Win32 DWORD, `uint`, ms since system boot) to track lead-bid timing, but stores it in a private field `m_Lead_Tick_Count` typed as `int` and accesses it via unchecked casts. After **~24.855 days of system uptime** (`Int32.MaxValue` ms), the cast yields a large negative number. Subsequent `Math.Abs(num3 - m_Lead_Tick_Count)` can hit `Math.Abs(Int32.MinValue)` — which has no positive `Int32` representation and throws `OverflowException`. The exception bubbles out of `epbot_create()` as null, surfaces in our Rust as `EPBotError::CreateFailed("...Arithmetic operation resulted in an overflow.")`.
 
