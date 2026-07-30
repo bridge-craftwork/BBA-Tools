@@ -39,13 +39,15 @@ struct Args {
     #[arg(long, default_value = "")]
     event: String,
 
-    /// Convention system name for N-S (for BidSystemNS tag)
-    #[arg(long = "ns-system-name", default_value = "2/1GF - 2/1 Game Force")]
-    ns_system_name: String,
+    /// Override the N-S system name in the BidSystemNS tag. Defaults to the
+    /// name EPBot reports for the .bbsa's `System type`.
+    #[arg(long = "ns-system-name")]
+    ns_system_name: Option<String>,
 
-    /// Convention system name for E-W (for BidSystemEW tag)
-    #[arg(long = "ew-system-name", default_value = "2/1GF - 2/1 Game Force")]
-    ew_system_name: String,
+    /// Override the E-W system name in the BidSystemEW tag. Defaults to the
+    /// name EPBot reports for the .bbsa's `System type`.
+    #[arg(long = "ew-system-name")]
+    ew_system_name: Option<String>,
 
     /// Enable verbose logging (use -vv for debug output)
     #[arg(short, long, action = clap::ArgAction::Count)]

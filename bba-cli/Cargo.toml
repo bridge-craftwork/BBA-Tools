@@ -1,6 +1,6 @@
 [package]
 name = "bba-cli"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 authors = ["Rick Wilson"]
 description = "Bridge Bidding Analyzer CLI - generates auctions for PBN files using native EPBot engine"
