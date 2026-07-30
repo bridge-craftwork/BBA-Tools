@@ -38,7 +38,9 @@ Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (
 
 **IMPORTANT — installed macOS copies do NOT match the repo sha.** The release workflow re-signs the macOS dylib with Developer ID **plus a per-build trusted timestamp**, so a dylib installed from a `.dmg` has a *different* sha than `ded470bf…` — and it even differs release-to-release for byte-identical code. So:
 - Verify a **source/repo** dylib against `ded470bf…`.
-- Verify an **installed** dylib against **that specific release's** DMG asset (e.g. v2.2.5's shipped dylib is `aab58732ea7bd3e971080a727e558fd85c1bfc525be7a8759f54647d1a468ce0`), or against the bba-cli version string, or by behavior (does it bid past 25 days uptime). Do NOT expect an install to equal `ded470bf…`.
+- Verify an **installed** dylib against **that specific release's** DMG asset, or against the bba-cli version string, or by behavior (does it bid past 25 days uptime). Do NOT expect an install to equal `ded470bf…`. Per-release shipped dylib shas:
+  - v2.2.5: `aab58732ea7bd3e971080a727e558fd85c1bfc525be7a8759f54647d1a468ce0`
+  - v2.3.2: `455ffd7921eb337ae5b18de8b384f7efa7ef035a4ef2c0ef59d467bddff49266` (shipped bba-cli `9a5e3a177cc25feec8899374829e727280d76b04203d9135bd94f818602bbc4a`) — installed to `/Applications/Bridge Utilities/` on Rick's Mac 2026-07-30, replacing bba-cli 0.2.3
 - The Linux `.so` is *not* re-signed, so installs there do match `e0e48200…` (the droplet is a sha-exact match).
 
 *Known-bad unpatched macOS builds seen in the wild (each overflows past ~25 days; all came from direct hand-offs, never a signed release — the repo only ever held two macOS dylibs, the original `b434aa7a…` and the patched `ded470bf…`):*
