@@ -126,6 +126,7 @@ dependencies = [
 [[package]]
 name = "bridge-parsers"
 version = "0.1.0"
+source = "git+https://github.com/bridge-craftwork/Bridge-Parsers#4e12e95aeda42ffe6017b6eb0597815a076b8dcf"
 dependencies = [
  "anyhow",
  "bridge-encodings",
