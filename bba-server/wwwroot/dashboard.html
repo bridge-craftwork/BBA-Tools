@@ -138,6 +138,11 @@
         .stacked-bar .segment:last-child {
             border-radius: 3px 3px 0 0;
         }
+        /* Full-width chart: spread the columns across the card instead of
+           bunching them at the left edge. */
+        .bar-chart.wide { justify-content: space-between; }
+        .bar-chart.wide .stacked-bar { max-width: 80px; }
+
         .bar-label {
             position: absolute;
             bottom: -25px;
@@ -158,7 +163,8 @@
         }
         .chart-legend {
             display: flex;
-            gap: 15px;
+            flex-wrap: wrap;
+            gap: 8px 15px;
             margin-top: 35px;
             font-size: 12px;
         }
@@ -397,18 +403,21 @@
 
     <!-- Environment Tab -->
     <div id="environment" class="tab-content">
-        <div class="three-column" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 25px; margin-top: 15px;">
+        <div style="display: grid; grid-template-columns: 1fr; gap: 25px; margin-top: 15px;">
             <div class="chart-container">
-                <h3>Extension</h3>
-                <div class="pie-container" id="env-extension-pie"></div>
+                <h3>Extension <span class="chart-subtitle" id="env-extension-period"></span></h3>
+                <div class="bar-chart wide" id="env-extension-chart"></div>
+                <div class="chart-legend" id="env-extension-legend"></div>
             </div>
             <div class="chart-container">
-                <h3>Browser</h3>
-                <div class="pie-container" id="env-browser-pie"></div>
+                <h3>Browser <span class="chart-subtitle" id="env-browser-period"></span></h3>
+                <div class="bar-chart wide" id="env-browser-chart"></div>
+                <div class="chart-legend" id="env-browser-legend"></div>
             </div>
             <div class="chart-container">
-                <h3>OS</h3>
-                <div class="pie-container" id="env-os-pie"></div>
+                <h3>OS <span class="chart-subtitle" id="env-os-period"></span></h3>
+                <div class="bar-chart wide" id="env-os-chart"></div>
+                <div class="chart-legend" id="env-os-legend"></div>
             </div>
         </div>
     </div>
@@ -476,6 +485,9 @@
         let logFiles = [];
 
         // Pie chart colors
+        // Bucket for users we have no environment header for (pre-X-Client-Info rows)
+        const UNKNOWN_ENV = '(unknown)';
+
         const pieColors = [
             '#007bff', '#28a745', '#ffc107', '#dc3545', '#17a2b8',
             '#6f42c1', '#fd7e14', '#20c997', '#e83e8c', '#6c757d'
@@ -1178,38 +1190,107 @@
                 </div>`;
         }
 
-        function renderEnvironment() {
-            const scenarios = getFilteredScenarioData();
-            const auctions = getFilteredAuctionData();
-            const allRows = [...scenarios, ...auctions];
+        // Per user: a chronological history of each environment field, plus the
+        // set of dates they were active on.
+        function buildEnvSeries() {
+            const rows = [...getFilteredScenarioData(), ...getFilteredAuctionData()]
+                .filter(r => r.RequestIP && r.Timestamp)
+                .sort((a, b) => a.Timestamp.localeCompare(b.Timestamp));
 
-            // Dedupe by user: a user's most recent non-empty value wins.
-            // Sort by timestamp ascending so later rows overwrite earlier ones.
-            const userEnv = {};
-            allRows
-                .slice()
-                .sort((a, b) => (a.Timestamp || '').localeCompare(b.Timestamp || ''))
-                .forEach(r => {
-                    const user = r.RequestIP;
-                    if (!user) return;
-                    if (!userEnv[user]) userEnv[user] = { ext: '', browser: '', os: '' };
-                    if (r.Extension) userEnv[user].ext = r.Extension;
-                    if (r.Browser) userEnv[user].browser = r.Browser;
-                    if (r.OS) userEnv[user].os = r.OS;
-                });
+            const activity = {};   // date -> Set(user)
+            const history = {};    // user -> { ext: [{date, value}], browser: [...], os: [...] }
 
-            const extCounts = {};
-            const browserCounts = {};
-            const osCounts = {};
-            Object.values(userEnv).forEach(({ ext, browser, os }) => {
-                if (ext) extCounts[ext] = (extCounts[ext] || 0) + 1;
-                if (browser) browserCounts[browser] = (browserCounts[browser] || 0) + 1;
-                if (os) osCounts[os] = (osCounts[os] || 0) + 1;
+            rows.forEach(r => {
+                const date = r.Timestamp.split(' ')[0];
+                if (!date) return;
+                const user = r.RequestIP;
+                if (!activity[date]) activity[date] = new Set();
+                activity[date].add(user);
+                if (!history[user]) history[user] = { ext: [], browser: [], os: [] };
+                const h = history[user];
+                if (r.Extension) h.ext.push({ date, value: r.Extension });
+                if (r.Browser) h.browser.push({ date, value: r.Browser });
+                if (r.OS) h.os.push({ date, value: r.OS });
             });
 
-            renderPieToElement('env-extension-pie', extCounts);
-            renderPieToElement('env-browser-pie', browserCounts);
-            renderPieToElement('env-os-pie', osCounts);
+            return { activity, history };
+        }
+
+        // A user's value for `field` as of `date`: their most recent reading on or
+        // before that date, falling back to their earliest known reading.
+        function envValueAt(history, user, field, date) {
+            const entries = history[user] && history[user][field];
+            if (!entries || entries.length === 0) return '';
+            let value = '';
+            for (const e of entries) {
+                if (e.date > date) break;
+                value = e.value;
+            }
+            return value || entries[0].value;
+        }
+
+        // Stacked columns over time: each bar is the unique users active in that
+        // period, split by the environment value they were on at the time.
+        function renderEnvChart(series, elementId, periodId, legendId, field) {
+            const el = document.getElementById(elementId);
+            const dates = Object.keys(series.activity).sort();
+            if (dates.length === 0) {
+                el.innerHTML = '<div class="muted">No data yet</div>';
+                document.getElementById(periodId).textContent = '';
+                document.getElementById(legendId).innerHTML = '';
+                return;
+            }
+
+            const { type, periods } = getPeriods(dates);
+            document.getElementById(periodId).textContent = `(${type.charAt(0).toUpperCase() + type.slice(1)})`;
+
+            const bars = periods.map(p => {
+                const pDates = p.dates || [p.start];
+                const users = new Set();
+                pDates.forEach(d => { if (series.activity[d]) series.activity[d].forEach(u => users.add(u)); });
+                const counts = {};
+                users.forEach(u => {
+                    const v = envValueAt(series.history, u, field, p.end) || UNKNOWN_ENV;
+                    counts[v] = (counts[v] || 0) + 1;
+                });
+                return { label: p.label, counts, total: users.size };
+            });
+
+            // Stable category order — and so stable colors — across every period:
+            // biggest overall first, with unknowns parked at the top of the stack.
+            const totals = {};
+            bars.forEach(b => Object.entries(b.counts).forEach(([k, n]) => { totals[k] = (totals[k] || 0) + n; }));
+            const categories = Object.keys(totals).sort((a, b) => {
+                if (a === UNKNOWN_ENV) return 1;
+                if (b === UNKNOWN_ENV) return -1;
+                return totals[b] - totals[a];
+            });
+            const colorOf = cat => cat === UNKNOWN_ENV ? '#adb5bd' : pieColors[categories.indexOf(cat) % pieColors.length];
+
+            const maxVal = Math.max(...bars.map(b => b.total), 1);
+            el.innerHTML = bars.map(b => {
+                const parts = categories.filter(c => b.counts[c]);
+                const tip = parts.map(c => `${c}: ${b.counts[c]}`).join(', ');
+                return `<div class="stacked-bar" title="${b.label} — ${tip || 'no users'}">
+                    <div class="bar-inner" style="height: ${(b.total / maxVal) * 100}%;">
+                        <span class="bar-value">${b.total}</span>
+                        ${parts.map(c => `<div class="segment" style="height: ${(b.counts[c] / b.total) * 100}%; background: ${colorOf(c)};"></div>`).join('')}
+                    </div>
+                    <span class="bar-label">${b.label}</span>
+                </div>`;
+            }).join('');
+
+            document.getElementById(legendId).innerHTML = categories.map(c => `
+                <div class="chart-legend-item">
+                    <div class="chart-legend-color" style="background: ${colorOf(c)};"></div> ${c}
+                </div>`).join('');
+        }
+
+        function renderEnvironment() {
+            const series = buildEnvSeries();
+            renderEnvChart(series, 'env-extension-chart', 'env-extension-period', 'env-extension-legend', 'ext');
+            renderEnvChart(series, 'env-browser-chart', 'env-browser-period', 'env-browser-legend', 'browser');
+            renderEnvChart(series, 'env-os-chart', 'env-os-period', 'env-os-legend', 'os');
         }
 
         function renderErrors() {
