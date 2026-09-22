@@ -16,6 +16,9 @@ epbot-core = { path = "../epbot-core" }
 # Bridge types and PBN parsing
 bridge-parsers = { git = "https://github.com/bridge-craftwork/Bridge-Parsers" }
 
+# In-place PBN editing (PbnDocument), so input tags survive the bba step
+bridge-encodings = { git = "https://github.com/bridge-craftwork/bridge-encodings" }
+
 # CLI argument parsing
 clap = { version = "4.4", features = ["derive"] }
 
