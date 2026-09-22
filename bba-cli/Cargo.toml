@@ -14,7 +14,7 @@ categories = ["command-line-utilities", "games"]
 epbot-core = { path = "../epbot-core" }
 
 # Bridge types and PBN parsing
-bridge-parsers = { path = "../../Bridge-Parsers" }
+bridge-parsers = { git = "https://github.com/bridge-craftwork/Bridge-Parsers" }
 
 # CLI argument parsing
 clap = { version = "4.4", features = ["derive"] }

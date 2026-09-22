@@ -120,10 +120,10 @@ fn hands_for_bba_hash(deal: &Deal) -> [HandSuits; 4] {
     for (i, &dir) in dirs.iter().enumerate() {
         let h = deal.hand(dir);
         out[i] = HandSuits {
-            clubs:    suit_string_with_t(&h, bridge_parsers::Suit::Clubs),
-            diamonds: suit_string_with_t(&h, bridge_parsers::Suit::Diamonds),
-            hearts:   suit_string_with_t(&h, bridge_parsers::Suit::Hearts),
-            spades:   suit_string_with_t(&h, bridge_parsers::Suit::Spades),
+            clubs:    suit_string_with_t(h, bridge_parsers::Suit::Clubs),
+            diamonds: suit_string_with_t(h, bridge_parsers::Suit::Diamonds),
+            hearts:   suit_string_with_t(h, bridge_parsers::Suit::Hearts),
+            spades:   suit_string_with_t(h, bridge_parsers::Suit::Spades),
         };
     }
     out
