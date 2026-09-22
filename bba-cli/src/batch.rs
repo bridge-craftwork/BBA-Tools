@@ -32,6 +32,8 @@ pub struct OutputConfig {
     pub ew_conventions_path: String,
     pub scoring: Scoring,
     pub single_dummy: bool,
+    /// Note every call's meaning (short | extended), not only alerts.
+    pub all_meanings: bool,
 }
 
 fn direction_to_int(dir: Direction) -> i32 {
@@ -226,7 +228,7 @@ pub fn process_pbn_file(
             Some(&ew_card),
             auction_prefix,
             config.single_dummy,
-            false,
+            config.all_meanings,
         );
 
         if result.success {
@@ -379,7 +381,7 @@ fn write_rich_pbn(
             }
 
             writeln!(writer, "[Auction \"{}\"]", direction_char(dealer))?;
-            write_annotated_auction(&mut writer, &result.bids)?;
+            write_annotated_auction(&mut writer, &result.bids, config.all_meanings)?;
         }
 
         if !system_names.ew.is_empty() {
@@ -503,6 +505,7 @@ fn derive_contract_declarer(bids: &[&str], dealer: i32) -> (String, String) {
 fn write_annotated_auction(
     writer: &mut impl Write,
     bids: &[epbot_core::BidInfo],
+    all_meanings: bool,
 ) -> Result<()> {
     let mut notes: Vec<(usize, String)> = Vec::new();
     let mut entries: Vec<String> = Vec::new();
@@ -511,7 +514,17 @@ fn write_annotated_auction(
         // PBN auction uses "1N"/"3N" rather than "1NT"/"3NT" — matches
         // legacy bba-cli-mac. See note in derive_contract_declarer.
         let bid_str = bid.bid.replace("NT", "N");
-        let meaning = bid.meaning.as_deref().unwrap_or("");
+        let meaning = if all_meanings {
+            [bid.meaning.as_deref(), bid.meaning_extended.as_deref()]
+                .into_iter()
+                .flatten()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(" | ")
+        } else {
+            bid.meaning.as_deref().unwrap_or("").to_string()
+        };
         if !meaning.is_empty() {
             let note_num = notes.len() + 1;
             notes.push((note_num, meaning.to_string()));
