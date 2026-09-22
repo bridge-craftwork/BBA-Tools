@@ -1,0 +1,53 @@
+% Three leveled deals from Practice-Bidding-Scenarios pbn-leveled/2N_and_1_Minor.pbn,
+% with an OptimumResultTable added to board 1 (illustrative values). Used by
+% bba-cli/tests/cli_smoke.rs to check bba-cli keeps the tags it does not own.
+%HRTitleEvent "2N_and_1_Minor"
+%HRSeed 639810 (offset 1)
+[Event "2N_and_1_Minor"]
+[Site "-"]
+[Board "1"]
+[HandType "Game"]
+[West "-"]
+[North "-"]
+[East "-"]
+[South "-"]
+[Dealer "S"]
+[Vulnerable "None"]
+[Deal "N:J75.T.862.AT9742 KQ964.Q53.J4.Q86 AT.AK86.AK973.K5 832.J9742.QT5.J3"]
+[Declarer "?"]
+[Contract "?"]
+[Result "?"]
+[OptimumResultTable "Declarer;Denomination\2R;Result\2R"]
+N NT 9
+N S 8
+S NT 9
+
+[Event "2N_and_1_Minor"]
+[Site "-"]
+[Board "2"]
+[HandType "Slam"]
+[West "-"]
+[North "-"]
+[East "-"]
+[South "-"]
+[Dealer "S"]
+[Vulnerable "NS"]
+[Deal "N:K.QJ93.J2.AKJ542 JT843.74.T9874.8 AQ76.AK86.AK6.73 952.T52.Q53.QT96"]
+[Declarer "?"]
+[Contract "?"]
+[Result "?"]
+
+[Event "2N_and_1_Minor"]
+[Site "-"]
+[Board "3"]
+[HandType "Slam"]
+[West "-"]
+[North "-"]
+[East "-"]
+[South "-"]
+[Dealer "S"]
+[Vulnerable "EW"]
+[Deal "N:K72.QT85.AJT642. T8654.6.3.KJT954 J3.AKJ73.KQ97.AQ AQ9.942.85.87632"]
+[Declarer "?"]
+[Contract "?"]
+[Result "?"]
