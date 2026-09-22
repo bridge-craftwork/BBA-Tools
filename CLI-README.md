@@ -43,6 +43,7 @@ bba-cli --input <INPUT.pbn> --output <OUTPUT.pbn> --ns-conventions <NS.bbsa> --e
 | `--ns-system-name <NAME>` | | Override the `[BidSystemNS]` text. Defaults to the name EPBot reports for the N-S card's `System type`, so you rarely need this. |
 | `--ew-system-name <NAME>` | | Override the `[BidSystemEW]` text. Defaults to the name EPBot reports for the E-W card's `System type`. |
 | `--auction-prefix <BIDS>` | | Force the first N bids of every auction (whitespace-separated, e.g. `"1C Pass 1H Pass"`). Each token must be `Pass`, `X`, `XX`, or `{1-7}{C\|D\|H\|S\|NT}`. EPBot resumes normal bidding after the prefix. Mirrors the bba-server `auctionPrefix` field, so the CLI and server stay interchangeable for A/B testing. |
+| `--all-meanings` | | Write EPBot's meaning for every call, not only alerted ones: one `[Note]` per call with the short meaning and the extended one (point and length ranges), separated by ` \| `. Mirrors the bba-server `includeAllMeanings` field. Off by default, so normal output is unchanged. |
 | `--verbose` | `-v` | Enable verbose logging (repeat for debug, e.g. `-vv`) |
 | `--dry-run` | | Parse input but don't write output |
 | `--help` | `-h` | Show help message |

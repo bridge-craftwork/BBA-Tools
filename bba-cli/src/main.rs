@@ -70,6 +70,12 @@ struct Args {
     #[arg(long = "single-dummy", default_value_t = false)]
     single_dummy: bool,
 
+    /// Write EPBot's meaning for every call, not only alerted ones: a [Note]
+    /// per call with the short meaning and the extended one (ranges and
+    /// lengths), separated by " | ". Off by default.
+    #[arg(long = "all-meanings", default_value_t = false)]
+    all_meanings: bool,
+
     /// Scoring mode for the auction. Affects [Score] computation and the
     /// [Scoring] tag.
     #[arg(long, value_name = "MODE", default_value = "MP", value_parser = parse_scoring_arg)]
@@ -141,6 +147,7 @@ fn main() -> Result<()> {
         ew_conventions_path: args.ew_conventions.display().to_string(),
         scoring: args.scoring,
         single_dummy: args.single_dummy,
+        all_meanings: args.all_meanings,
     };
 
     if args.single_dummy {
