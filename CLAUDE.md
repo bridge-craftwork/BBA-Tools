@@ -84,6 +84,7 @@ It fixes a real crash ThorvaldAagaard reported (2026-05-08→10): pointer-return
 - Verify an **installed** dylib against **that specific release's** DMG asset, or against the bba-cli version string, or by behavior (does it bid past 25 days uptime). Do NOT expect an install to equal `ded470bf…`. Per-release shipped dylib shas:
   - v2.2.5: `aab58732ea7bd3e971080a727e558fd85c1bfc525be7a8759f54647d1a468ce0`
   - v2.3.2: `455ffd7921eb337ae5b18de8b384f7efa7ef035a4ef2c0ef59d467bddff49266` (shipped bba-cli `9a5e3a177cc25feec8899374829e727280d76b04203d9135bd94f818602bbc4a`) — installed to `/Applications/Bridge Utilities/` on Rick's Mac 2026-07-30, replacing bba-cli 0.2.3
+  - v2.4.0: `2174c35c99f5a793996be163784c148f3fdc728752af1deb68bc1c1293c532f6` (shipped bba-cli `f51bf66ee31ea195c90f7a2bd4330872a22647fb40f7d40b9803223176cc9778`, bba-server `09baca7f0e6aa1443e1bb37a1206727e0f7cd63d59bebc25e318cf6e74a12d4d`; DMG `6a13f05e5e2e1b40b52891c947c1af5dce2409886af9676defe14afd8913621b`) — notarized, Gatekeeper-accepted, **not yet installed anywhere**. bba-cli 0.3.0 is the first release whose PBN output preserves the input's tags (#26).
 - The Linux `.so` is *not* re-signed, so installs there do match `e0e48200…` (the droplet is a sha-exact match).
 
 *Known-bad unpatched macOS builds seen in the wild (each overflows past ~25 days; all came from direct hand-offs, never a signed release — the repo only ever held two macOS dylibs, the original `b434aa7a…` and the patched `ded470bf…`):*
