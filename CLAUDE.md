@@ -22,7 +22,7 @@ From Edward Piwowar's NativeAOT build. Located in `epbot-libs/`:
 - `macos/arm64/libEPBot.dylib`
 - `windows/x64/EPBot.dll`, `windows/arm64/EPBot.dll` (untested — proper AOT builds first shipped in v2.2.4)
 
-Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (committed 2026-05-04). The "8740" label and file dates are NOT reliable identifiers — an earlier 2026-05-03 build carries the same label and leaked into installs. Identify the patched build by sha256 (fingerprints under "EPBot 25-day uptime crash" below). See that section for what the patch fixes.
+Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (committed 2026-05-04). The "8740" label and file dates are NOT reliable identifiers — an earlier 2026-05-03 build carries the same label and leaked into installs, and Edward's repo now holds a *newer* 2026-05-07 rebuild that also reports 8740 and bids differently from ours. Identify the patched build by sha256 (fingerprints under "EPBot 25-day uptime crash" below). See that section for what the patch fixes.
 
 ### EPBot 25-day uptime crash
 
@@ -30,11 +30,54 @@ Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (
 
 **Proof the patch works.** The droplet's loaded `libEPBot.so` is a sha256-exact match to the repo's patched build (`e0e48200…`, 3,929,144 B). It sat at 57 days OS uptime through its 24.855-day danger window (~2026-05-29) and the entire negative-tick window (late May–~2026-06-23) with **zero** overflow rows in the auction audit logs, and it bids live today. That is exactly the confirmation the old "watch 2026-05-29" plan was waiting for.
 
+**Upstream tracking — [EdwardPiwowar/BBA#137](https://github.com/EdwardPiwowar/BBA/issues/137), "New version of BBA released".** Edward's long-running release thread (open since 2023-12-27, 329 comments as of 2026-08-26) and the de-facto channel for everything EPBot: build announcements, bug reports, and library drops that never reach the repo. **Check it before trusting `Native-libraries/` in his repo** — builds get posted here as zip attachments and are sometimes never committed (see 8741 below). Regulars: EdwardPiwowar (owner), ThorvaldAagaard (BEN), ADavidBailey, Rick-Wilson. Rick's comments run 2026-03-08→2026-05-02 and are the origin of the native-library builds — Edward's C ABI *is* Rick's `EPBotFFI.cs` from [Rick-Wilson/bba-native-libraries](https://github.com/Rick-Wilson/bba-native-libraries). Thread has been silent since 2026-05-10.
+
+Note Edward considers native/wasm library builds Rick's side of the fence — *"Maybe Rick will create libraries based on EPBotNet.dll"* (2026-05-09). `bba-native-libraries` already builds them via GitHub Actions (matrix: `osx-arm64`, `linux-x64`, `win-x64`, from `dll/EPBot8739.dll`), so a new target belongs there rather than in a request to him.
+
 **Authoritative fingerprints — identify a build by sha256, NOT by the "8740" label or file date (all report 8740).**
 
 *Repo/source builds (as committed here — adhoc/linker-signed; stable across time):*
 - macOS arm64 patched `libEPBot.dylib`: `ded470bf10e1f65f2d775c8b6860cde4c6ebf76b20610d3074971278173d8ca5` (3,741,088 B)
 - Linux x64 patched `libEPBot.so`: `e0e482000de4c65cda1415a18475aaa1a31037e27d4c0a0ebe2aa642f9abd39f` (3,929,144 B)
+- Linux arm64 patched `libEPBot.so`: `481027fea96bcf0e1d0a5f54d03bf413c14218e5dcef02ff28f5716c273feadf` (3,884,008 B)
+- Windows x64 patched `EPBot.dll`: `587ca3b2055f8b86ea53b37e361b245286aee950a5de98ecbb6e4ba332b93bf0` (3,840,512 B)
+- Windows arm64 patched `EPBot.dll`: `fbdfd2d68ec6547ab9e0fe033deb488bdd4ee10b3c8251bef68b8028a4000b1c` (3,785,216 B)
+
+**Upstream now ships a THIRD distinct 8740 build — newer than ours, and NOT bidding-equivalent (established 2026-08-26).** Edward's repo (`github.com/EdwardPiwowar/BBA`, `Native-libraries/`) committed a rebuild on **2026-05-07**, three days after the 2026-05-04 hand-off we ship. Every platform differs from ours by sha256 while being **byte-for-byte the same size** and still reporting version **8740** — so size, label, and date *all* fail to distinguish them. Only sha256 does. Upstream shas:
+
+| Platform | Ours (repo, 2026-05-04) | Upstream (2026-05-07) |
+|----------|-------------------------|------------------------|
+| macos/arm64 | `ded470bf…` | `c3d7146ced0542597dbe16d008acd82ea916568c6cbb10ace5d685f22431d1c3` |
+| linux/x64 | `e0e48200…` | `1a1b5f4df4d4d7d1cee212430a53d79359dc6174de222161e9de35e622d5315d` |
+| linux/arm64 | `481027fe…` | `1de565314d3c9ee2d81c7a4a609d317e59c04b047978c96e4a86fdf171493e5a` |
+| windows/x64 | `587ca3b2…` | `c3c351aa6b15ac1f3a5dcb6eeadd59066b2e9bcfb0372948fd047bf692da55aa` |
+| windows/arm64 | `fbdfd2d6…` | `6066832679acf0b614953e4843d1a98eecb9e1879bef38f27ee9d55cb0aa4087` |
+
+A/B of the upstream macOS dylib against ours through `bba-cli` on the slow fixtures (21GF-DEFAULT / 21GF-GIB):
+
+| Fixture | Boards | Differ | Different contract |
+|---------|--------|--------|--------------------|
+| `tests/fixtures/slow/1N.pbn` | 500 | 2 (0.4%) | 1 |
+| `tests/fixtures/slow/Fourth_Suit_Forcing.pbn` | 500 | 50 (10%) | 36 |
+
+The upstream build looks *better* on the FSF fixture — it finds real fourth-suit-forcing sequences (`1C-1H-1S-2D` with a "Fourth suit game force" alert) where ours jumps straight to 2H — but that is an inference from one inspected board, not a graded comparison across all 50. **Do not upgrade casually:** it moves production auctions and requires a goldens refresh in `tests/fixtures/expected/`.
+
+**A FOURTH build exists — "8741", the one we should actually upgrade to (found 2026-08-26).** Posted by Edward on 2026-05-10 as a **zip attachment in [BBA#137](https://github.com/EdwardPiwowar/BBA/issues/137) only** — [EPBot-libraries-8741.zip](https://github.com/user-attachments/files/27563301/EPBot-libraries-8741.zip). It was **never committed to his repo**, so the repo's 2026-05-07 files are missing its fix. It still self-reports version **8740**.
+
+It fixes a real crash ThorvaldAagaard reported (2026-05-08→10): pointer-returning `get_info_*` calls segfaulting at `position=13`. **That crash almost certainly cannot reach us** — we pass seat positions 0–3, and Rick's `EPBotFFI.cs` ABI fills a caller-supplied buffer and returns a status code rather than returning a pointer to dereference (see [epbot-core/src/lib.rs:742](epbot-core/src/lib.rs#L742)). The reported failure was a Python ctypes binding dereferencing returned pointers.
+
+8741 fingerprints (sha256 / bytes):
+- macOS arm64 `libEPBot.dylib`: `c1ca27b5eede4a55c92220c8816fc1c9b2b41038caa9b4be0f4ba625f18f1fbb` (3,741,088 B)
+- Linux x64 `libEPBot.so`: `63e83a9503b87fcbf0a6637075cb323497b5b0a4c40f2c9ab98eaf411056af28` (3,929,144 B)
+- Linux arm64 `libEPBot.so`: `2ac0e466cb795c3b7b0e4b9d8b38f319a35d8ef0ece0334fe820c9a3c83b6277` (3,884,008 B)
+- Windows x64 `EPBot.dll`: `2df86fdcff077dbcd5366ccefe94587d7f478a13c99d21b0520e8bbc300a023c` (3,841,024 B)
+- Windows arm64 `EPBot.dll`: `8e0612207b99a21e74e78da8f5c794488e0d6e66babdbcf93103e63a7d83abd8` (3,785,216 B)
+
+**8741 is bidding-identical to the 2026-05-07 repo build** — verified on both slow fixtures, 0 boards differing. So the bidding change happened between our 2026-05-04 hand-off and 2026-05-07; 8741 adds only the pointer fix on top. **If we upgrade, upgrade to 8741, not to the repo files.**
+
+**Open actions (as of 2026-08-26):** (1) ask Edward what changed in the 2026-05-07 rebuild that moved the bidding, and ask him to **commit 8741** rather than leaving it as a thread attachment; (2) ask him to bump the version number (or expose a build id) whenever the binaries change — ThorvaldAagaard asked for the same thing on 2026-05-09, so the request has a second voice behind it; (3) decide on the 8741 upgrade, which needs a goldens refresh either way.
+
+**Runtime-independent reference engine.** Edward also publishes the engine as plain IL: `EPBotNET.dll` (957,440 B, assembly version 0.0.0.8740) at his repo root and under `Native-libraries/wasm/`. It loads on stock .NET 10 (verified on macOS arm64), needs **no** native EPBot and no shim — the `kernel32!GetTickCount` P/Invoke that breaks the older 8736 IL is never reached in 8740 — and it reproduced a production `bba-server` auction exactly. Useful as a cross-check when you need to know what "the engine" says without a platform binary. Note it matches *our* 2026-05-04 behavior on the deal tested, not necessarily upstream's 2026-05-07 rebuild.
 
 **IMPORTANT — installed macOS copies do NOT match the repo sha.** The release workflow re-signs the macOS dylib with Developer ID **plus a per-build trusted timestamp**, so a dylib installed from a `.dmg` has a *different* sha than `ded470bf…` — and it even differs release-to-release for byte-identical code. So:
 - Verify a **source/repo** dylib against `ded470bf…`.
@@ -51,7 +94,15 @@ Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (
 
 **Root cause.** EPBot's NativeAOT C# code uses `GetTickCount()` (Win32 DWORD, `uint`, ms since system boot) to track lead-bid timing, but stores it in a private field `m_Lead_Tick_Count` typed as `int` and accesses it via unchecked casts. After **~24.855 days of system uptime** (`Int32.MaxValue` ms), the cast yields a large negative number. Subsequent `Math.Abs(num3 - m_Lead_Tick_Count)` can hit `Math.Abs(Int32.MinValue)` — which has no positive `Int32` representation and throws `OverflowException`. The exception bubbles out of `epbot_create()` as null, surfaces in our Rust as `EPBotError::CreateFailed("...Arithmetic operation resulted in an overflow.")`.
 
-The proper fix (Edward's patch) is to type the field as `uint`, drop the casts, and use unsigned subtraction (which wraps cleanly across the `uint` boundary, giving correct elapsed-ms deltas for intervals < ~49.7 days).
+**What Edward actually changed (corrected 2026-08-26 from [BBA#137](https://github.com/EdwardPiwowar/BBA/issues/137)).** Earlier revisions of this file claimed the patch typed the field as `uint` and used unsigned subtraction. That is *not* what he did — he went the opposite way, and said so explicitly: *"I think a simple change from UInteger to Integer will suffice. I used UInteger at Claude's suggestion, but he now says it's incorrect :)"* (2026-05-02). The shipped patch is:
+
+```vb
+Public Function GetTickCount() As Integer
+GetTickCount = Environment.TickCount
+End Function
+```
+
+**Why that works is probably not the mechanism described above.** VB.NET narrowing conversions are checked by default, so the old `UInteger`-returning `GetTickCount` assigned into the `Integer` field would itself throw `OverflowException` once the tick count passed `Int32.MaxValue` — before any `Math.Abs` was reached. Returning `Integer` directly removes the conversion entirely. `Environment.TickCount` is still an `Int32` that goes negative at ~24.9 days, but consecutive readings sit close together, so the delta stays small and the `Math.Abs` gate is safe in practice. Treat the checked-narrowing explanation as **inference** — it reconciles his one-line fix with the droplet's 57-day clean run, but the thread does not state it and we have not decompiled the patched build to confirm.
 
 **Confirmed incidents:**
 - **Droplet, 2026-04-09** — first observed crash. Initially attributed to a coincident `libssl3` update; we now think the package update was incidental and the trigger was simply uptime crossing the threshold. Reboot resolved.
