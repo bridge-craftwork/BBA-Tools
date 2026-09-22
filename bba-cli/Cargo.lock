@@ -99,6 +99,7 @@ name = "bba-cli"
 version = "0.2.5"
 dependencies = [
  "anyhow",
+ "bridge-encodings",
  "bridge-parsers",
  "clap",
  "env_logger 0.10.2",
@@ -117,7 +118,7 @@ checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
 [[package]]
 name = "bridge-encodings"
 version = "0.1.0"
-source = "git+https://github.com/bridge-craftwork/bridge-encodings#a8e445fbe206e2b4c29c240eade5b396ad87513f"
+source = "git+https://github.com/bridge-craftwork/bridge-encodings#ca22c089a0a5671a46b7839243e33473f1838ff3"
 dependencies = [
  "bridge-types",
  "thiserror 2.0.18",
