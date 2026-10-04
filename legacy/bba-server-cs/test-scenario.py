@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Configuration
-PBS_ROOT = os.path.expanduser("~/Development/GitHub/Practice-Bidding-Scenarios")
+PBS_ROOT = os.path.expanduser("/Volumes/Express2T/Development/GitHub/Practice-Bidding-Scenarios")
 BBA_PATH = os.path.join(PBS_ROOT, "bba")
 SERVER_URL = "http://10.211.55.5:5000"
 

@@ -290,7 +290,7 @@ The Windows VM is still used for testing Windows-specific EPBot functionality an
 import os, sys
 os.environ['WINDOWS_HOST'] = '10.211.55.5'
 os.environ['WINDOWS_USER'] = 'Rick'
-sys.path.insert(0, '/Users/rick/Development/GitHub/Practice-Bidding-Scenarios/build-scripts-mac')
+sys.path.insert(0, '/Volumes/Express2T/Development/GitHub/Practice-Bidding-Scenarios/build-scripts-mac')
 from ssh_runner import run_windows_command
 ```
 
@@ -299,10 +299,10 @@ from ssh_runner import run_windows_command
 | Windows Drive | Mac Path |
 |--------------|----------|
 | `G:` | `/Users/rick/Development/GitHub` |
-| `P:` | `/Users/rick/Development/GitHub/Practice-Bidding-Scenarios` |
+| `P:` | `/Volumes/Express2T/Development/GitHub/Practice-Bidding-Scenarios` |
 
 ### Convention Files
 
-- Mac: `/Users/rick/Development/GitHub/Practice-Bidding-Scenarios/bbsa/`
+- Mac: `/Volumes/Express2T/Development/GitHub/Practice-Bidding-Scenarios/bbsa/`
 - Windows: `P:\bbsa\`
 - Default convention: `21GF-DEFAULT.bbsa`

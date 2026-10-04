@@ -293,7 +293,7 @@ ssh rick@10.211.55.5 "tasklist | findstr cloudflared"
 import os, sys
 os.environ['WINDOWS_HOST'] = '10.211.55.5'
 os.environ['WINDOWS_USER'] = 'Rick'
-sys.path.insert(0, '/Users/rick/Development/GitHub/Practice-Bidding-Scenarios/build-scripts-mac')
+sys.path.insert(0, '/Volumes/Express2T/Development/GitHub/Practice-Bidding-Scenarios/build-scripts-mac')
 from ssh_runner import run_windows_command
 
 # Stop, build, and restart

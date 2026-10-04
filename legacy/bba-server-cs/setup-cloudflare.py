@@ -9,7 +9,7 @@ import time
 
 # Add the PBS build-scripts-mac to path
 PBS_BUILD_SCRIPTS = os.path.expanduser(
-    "~/Development/GitHub/Practice-Bidding-Scenarios/build-scripts-mac"
+    "/Volumes/Express2T/Development/GitHub/Practice-Bidding-Scenarios/build-scripts-mac"
 )
 sys.path.insert(0, PBS_BUILD_SCRIPTS)
 
