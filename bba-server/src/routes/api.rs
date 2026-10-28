@@ -86,15 +86,35 @@ pub async fn generate_auction(
         ConventionCards::default()
     };
 
-    // Fetch convention card content from GitHub
-    let ns_content = state
-        .convention_service
-        .get_bbsa_content(&conventions.ns)
-        .await;
-    let ew_content = state
-        .convention_service
-        .get_bbsa_content(&conventions.ew)
-        .await;
+    // Card content: given in the request, else fetched from GitHub by name
+    let content = request.convention_content.clone().unwrap_or_default();
+    let custom_cards: Vec<String> = [("ns", &content.ns), ("ew", &content.ew)]
+        .iter()
+        .filter(|(_, c)| c.is_some())
+        .map(|(side, _)| side.to_string())
+        .collect();
+    let ns_content = match given_card_text(content.ns, "ns") {
+        Some(given) => given,
+        None => {
+            state
+                .convention_service
+                .get_bbsa_content(&conventions.ns)
+                .await
+        }
+    };
+    let ew_content = match given_card_text(content.ew, "ew") {
+        Some(given) => given,
+        None => {
+            state
+                .convention_service
+                .get_bbsa_content(&conventions.ew)
+                .await
+        }
+    };
+    // The audit log marks a card given as content, so it's never mistaken
+    // for the PBS card of the same name.
+    let log_ns = log_card_name(&conventions.ns, custom_cards.iter().any(|s| s == "ns"));
+    let log_ew = log_card_name(&conventions.ew, custom_cards.iter().any(|s| s == "ew"));
 
     let response = match (ns_content, ew_content) {
         (Ok(ns_text), Ok(ew_text)) => {
@@ -171,8 +191,8 @@ pub async fn generate_auction(
                     &deal_dealer,
                     &deal_vul,
                     &deal_scoring,
-                    &conventions.ns,
-                    &conventions.ew,
+                    &log_ns,
+                    &log_ew,
                     scenario_clone.as_deref().unwrap_or(""),
                     &deal_pbn,
                     true,
@@ -203,6 +223,7 @@ pub async fn generate_auction(
                     auction: Some(auction),
                     auction_encoded: Some(encoded),
                     conventions_used: Some(conventions),
+                    custom_cards: custom_cards.clone(),
                     meanings: Some(meanings),
                     contract,
                     declarer,
@@ -226,8 +247,8 @@ pub async fn generate_auction(
                     &deal_dealer,
                     &deal_vul,
                     &deal_scoring,
-                    &conventions.ns,
-                    &conventions.ew,
+                    &log_ns,
+                    &log_ew,
                     scenario_clone.as_deref().unwrap_or(""),
                     &deal_pbn,
                     false,
@@ -241,6 +262,7 @@ pub async fn generate_auction(
                     auction: None,
                     auction_encoded: None,
                     conventions_used: Some(conventions),
+                    custom_cards: custom_cards.clone(),
                     meanings: None,
                     contract: None,
                     declarer: None,
@@ -256,6 +278,7 @@ pub async fn generate_auction(
             auction: None,
             auction_encoded: None,
             conventions_used: Some(conventions),
+            custom_cards,
             meanings: None,
             contract: None,
             declarer: None,
@@ -470,4 +493,78 @@ fn format_alerts(meanings: &[BidMeaning]) -> String {
         .map(|m| format!("{}={}", m.bid, m.meaning.as_deref().unwrap_or("")))
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+/// Largest `.bbsa` text accepted as content. A real card is about 5 KB.
+const MAX_CARD_BYTES: usize = 64 * 1024;
+
+/// A side's card text given in the request: `None` when not given (fetch it by
+/// name), else the text, or an error when it is empty or too large.
+fn given_card_text(given: Option<String>, side: &str) -> Option<Result<String, String>> {
+    let text = given?;
+    Some(if text.trim().is_empty() {
+        Err(format!("conventionContent.{side} is empty"))
+    } else if text.len() > MAX_CARD_BYTES {
+        Err(format!(
+            "conventionContent.{side} is too large ({} bytes, limit {MAX_CARD_BYTES})",
+            text.len()
+        ))
+    } else {
+        Ok(text)
+    })
+}
+
+/// The card name the audit log records: a given card is `custom:<label>`.
+fn log_card_name(name: &str, custom: bool) -> String {
+    if custom {
+        format!("custom:{name}")
+    } else {
+        name.to_string()
+    }
+}
+
+#[cfg(test)]
+mod card_content_tests {
+    use super::*;
+
+    #[test]
+    fn a_side_not_given_is_fetched_by_name() {
+        assert!(given_card_text(None, "ns").is_none());
+    }
+
+    #[test]
+    fn given_text_is_used_as_is() {
+        let text = "System type = 0\r\nStayman = 1\r\n".to_string();
+        assert_eq!(given_card_text(Some(text.clone()), "ns"), Some(Ok(text)));
+    }
+
+    #[test]
+    fn empty_or_oversized_text_is_refused() {
+        assert!(
+            matches!(given_card_text(Some("  \r\n".into()), "ew"), Some(Err(e)) if e.contains("ew is empty"))
+        );
+        let big = "x".repeat(MAX_CARD_BYTES + 1);
+        assert!(
+            matches!(given_card_text(Some(big), "ns"), Some(Err(e)) if e.contains("too large"))
+        );
+    }
+
+    #[test]
+    fn the_log_marks_given_cards() {
+        assert_eq!(log_card_name("My card", true), "custom:My card");
+        assert_eq!(log_card_name("21GF-GIB", false), "21GF-GIB");
+    }
+
+    #[test]
+    fn the_request_reads_convention_content() {
+        let req: crate::models::AuctionRequest = serde_json::from_value(serde_json::json!({
+            "deal": { "pbn": "N:...", "dealer": "N", "vulnerability": "None" },
+            "conventions": { "ns": "My card", "ew": "21GF-GIB" },
+            "conventionContent": { "ns": "System type = 0\r\n" }
+        }))
+        .unwrap();
+        let content = req.convention_content.unwrap();
+        assert_eq!(content.ns.as_deref(), Some("System type = 0\r\n"));
+        assert!(content.ew.is_none());
+    }
 }

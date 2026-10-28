@@ -6,6 +6,11 @@ pub struct AuctionRequest {
     pub deal: DealInfo,
     pub scenario: Option<String>,
     pub conventions: Option<ConventionCards>,
+    /// `.bbsa` text to bid with instead of fetching a side's card by name:
+    /// a card that isn't in the PBS `bbsa/` folder, such as a user's own
+    /// convention card. `conventions.<side>` is then only its label.
+    #[serde(default, alias = "conventionContent")]
+    pub convention_content: Option<ConventionContent>,
     /// Optional forced bid sequence to use for the first N positions of the
     /// auction. Each entry must be one of: "Pass", "X", "XX", or
     /// {1-7}{C|D|H|S|NT}. Used by "what if I had bid X" practice flows.
@@ -39,6 +44,13 @@ pub struct DealInfo {
 
 fn default_scoring() -> String {
     "MP".to_string()
+}
+
+/// `.bbsa` text per side; a side left out is fetched by name.
+#[derive(Deserialize, Default, Clone)]
+pub struct ConventionContent {
+    pub ns: Option<String>,
+    pub ew: Option<String>,
 }
 
 /// Convention card specifications.
@@ -77,6 +89,11 @@ pub struct AuctionResponse {
     pub auction_encoded: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conventions_used: Option<ConventionCards>,
+    /// The sides ("ns", "ew") bid with `conventionContent` rather than a
+    /// named card. Lets a client tell this server from an older one, which
+    /// ignores `conventionContent` and bids with the named cards.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub custom_cards: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meanings: Option<Vec<BidMeaning>>,
     /// Final contract (e.g. "4H", "3NT", "5CX"). Present whenever the
