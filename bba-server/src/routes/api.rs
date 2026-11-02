@@ -74,14 +74,19 @@ pub async fn generate_auction(
     let client_info = get_client_info(&headers);
 
     // Determine convention cards
+    let mut scenario_resolved = true;
     let conventions = if let Some(ref conv) = request.conventions {
         conv.clone()
     } else if let Some(ref scenario) = request.scenario {
-        let (ns, ew) = state
+        let cards = state
             .convention_service
             .get_conventions_for_scenario(scenario)
             .await;
-        ConventionCards { ns, ew }
+        scenario_resolved = cards.resolved;
+        ConventionCards {
+            ns: cards.ns,
+            ew: cards.ew,
+        }
     } else {
         ConventionCards::default()
     };
@@ -93,6 +98,11 @@ pub async fn generate_auction(
         .filter(|(_, c)| c.is_some())
         .map(|(side, _)| side.to_string())
         .collect();
+    let warnings = scenario_warnings(
+        request.scenario.as_deref(),
+        scenario_resolved,
+        custom_cards.len(),
+    );
     let ns_content = match given_card_text(content.ns, "ns") {
         Some(given) => given,
         None => {
@@ -224,6 +234,7 @@ pub async fn generate_auction(
                     auction_encoded: Some(encoded),
                     conventions_used: Some(conventions),
                     custom_cards: custom_cards.clone(),
+                    warnings,
                     meanings: Some(meanings),
                     contract,
                     declarer,
@@ -263,6 +274,7 @@ pub async fn generate_auction(
                     auction_encoded: None,
                     conventions_used: Some(conventions),
                     custom_cards: custom_cards.clone(),
+                    warnings,
                     meanings: None,
                     contract: None,
                     declarer: None,
@@ -279,6 +291,7 @@ pub async fn generate_auction(
             auction_encoded: None,
             conventions_used: Some(conventions),
             custom_cards,
+            warnings,
             meanings: None,
             contract: None,
             declarer: None,
@@ -323,6 +336,23 @@ pub async fn list_scenarios(
     match state.convention_service.get_scenario_list().await {
         Ok(scenarios) => Json(serde_json::json!({ "scenarios": scenarios })),
         Err(e) => Json(serde_json::json!({ "scenarios": [], "error": e })),
+    }
+}
+
+/// What a client should know about the scenario it asked for. Empty unless the
+/// scenario did not resolve and a default card actually stood in for it: with
+/// both sides given as content, no default was bid.
+fn scenario_warnings(
+    scenario: Option<&str>,
+    resolved: bool,
+    sides_given_as_content: usize,
+) -> Vec<String> {
+    match scenario {
+        Some(name) if !resolved && sides_given_as_content < 2 => vec![format!(
+            "Scenario '{}' could not be resolved; used default convention cards",
+            name
+        )],
+        _ => Vec::new(),
     }
 }
 
@@ -520,6 +550,30 @@ fn log_card_name(name: &str, custom: bool) -> String {
         format!("custom:{name}")
     } else {
         name.to_string()
+    }
+}
+
+#[cfg(test)]
+mod scenario_warning_tests {
+    use super::*;
+
+    #[test]
+    fn an_unresolved_scenario_warns_and_names_itself() {
+        let warnings = scenario_warnings(Some("No_Such"), false, 0);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("'No_Such'"), "{}", warnings[0]);
+    }
+
+    #[test]
+    fn nothing_to_warn_about_otherwise() {
+        assert!(scenario_warnings(Some("Real"), true, 0).is_empty());
+        assert!(scenario_warnings(None, true, 0).is_empty());
+    }
+
+    #[test]
+    fn a_default_standing_in_for_one_side_still_warns_but_none_for_both_given() {
+        assert_eq!(scenario_warnings(Some("No_Such"), false, 1).len(), 1);
+        assert!(scenario_warnings(Some("No_Such"), false, 2).is_empty());
     }
 }
 
