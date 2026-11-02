@@ -305,6 +305,23 @@ pub async fn generate_auction(
     Json(response)
 }
 
+/// What a client should know about the scenario it asked for. Empty unless the
+/// scenario did not resolve and a default card actually stood in for it: with
+/// both sides given as content, no default was bid.
+fn scenario_warnings(
+    scenario: Option<&str>,
+    resolved: bool,
+    sides_given_as_content: usize,
+) -> Vec<String> {
+    match scenario {
+        Some(name) if !resolved && sides_given_as_content < 2 => vec![format!(
+            "Scenario '{}' could not be resolved; used default convention cards",
+            name
+        )],
+        _ => Vec::new(),
+    }
+}
+
 /// POST /api/scenario/select
 pub async fn select_scenario(
     State(state): State<AppState>,
@@ -336,23 +353,6 @@ pub async fn list_scenarios(
     match state.convention_service.get_scenario_list().await {
         Ok(scenarios) => Json(serde_json::json!({ "scenarios": scenarios })),
         Err(e) => Json(serde_json::json!({ "scenarios": [], "error": e })),
-    }
-}
-
-/// What a client should know about the scenario it asked for. Empty unless the
-/// scenario did not resolve and a default card actually stood in for it: with
-/// both sides given as content, no default was bid.
-fn scenario_warnings(
-    scenario: Option<&str>,
-    resolved: bool,
-    sides_given_as_content: usize,
-) -> Vec<String> {
-    match scenario {
-        Some(name) if !resolved && sides_given_as_content < 2 => vec![format!(
-            "Scenario '{}' could not be resolved; used default convention cards",
-            name
-        )],
-        _ => Vec::new(),
     }
 }
 
