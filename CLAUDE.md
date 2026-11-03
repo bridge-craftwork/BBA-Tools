@@ -237,7 +237,7 @@ ADMIN_USERS=Valerie_Perez,Travis_Scott,Tom_Martinez,Carol_Jordan,Joe_Evans,Rebec
 ADMIN_KEY=goosebumps
 ```
 
-Convention cards (.bbsa) and scenario files (.pbs) are fetched from GitHub at runtime.
+Convention cards (.bbsa) and scenario files (.dlr) are fetched from GitHub at runtime.
 
 ### Logs
 
