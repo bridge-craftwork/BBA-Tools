@@ -79,7 +79,7 @@ impl Default for ConventionCards {
 }
 
 /// Response from auction generation.
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AuctionResponse {
     pub success: bool,

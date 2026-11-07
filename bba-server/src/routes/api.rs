@@ -8,6 +8,7 @@ use crate::models::*;
 use crate::AppState;
 use crate::services::ip_anonymizer;
 use epbot_core::{ConventionCard, Scoring};
+use tracing::warn;
 
 /// Extract client IP from headers (Cloudflare → X-Forwarded-For → connection).
 fn get_client_ip(headers: &HeaderMap, conn: &SocketAddr) -> Option<String> {
@@ -121,9 +122,44 @@ pub async fn generate_auction(
             let ns_card = ConventionCard::from_content(&ns_text);
             let ew_card = ConventionCard::from_content(&ew_text);
 
-            // Parse dealer
-            let dealer = parse_dealer(&request.deal.dealer);
-            let vul = parse_vulnerability(&request.deal.vulnerability);
+            // A seat we don't recognize fails here rather than being bid as
+            // the wrong deal under `success: true`.
+            let parsed = parse_dealer(&request.deal.dealer).and_then(|dealer| {
+                parse_vulnerability(&request.deal.vulnerability).map(|vul| (dealer, vul))
+            });
+            let (dealer, vul) = match parsed {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    warn!("Rejected auction request: {:?}", err);
+                    state.audit_log.log_request(
+                        &anon_ip,
+                        &client_version,
+                        &client_info.extension,
+                        &client_info.browser,
+                        &client_info.os,
+                        start.elapsed().as_millis() as u64,
+                        state.epbot_version,
+                        &request.deal.dealer,
+                        &request.deal.vulnerability,
+                        &request.deal.scoring,
+                        &log_ns,
+                        &log_ew,
+                        request.scenario.as_deref().unwrap_or(""),
+                        &request.deal.pbn,
+                        false,
+                        "",
+                        "",
+                        &err,
+                    );
+                    return Json(AuctionResponse {
+                        success: false,
+                        conventions_used: Some(conventions),
+                        custom_cards,
+                        error: Some(err),
+                        ..Default::default()
+                    });
+                }
+            };
             let scoring = if request.deal.scoring.eq_ignore_ascii_case("IMP") {
                 Scoring::Imps
             } else {
@@ -326,23 +362,26 @@ pub async fn list_scenarios(
     }
 }
 
-fn parse_dealer(dealer: &str) -> i32 {
+fn parse_dealer(dealer: &str) -> Result<i32, String> {
     match dealer.to_uppercase().as_str() {
-        "N" | "NORTH" => 0,
-        "E" | "EAST" => 1,
-        "S" | "SOUTH" => 2,
-        "W" | "WEST" => 3,
-        _ => 0,
+        "N" | "NORTH" => Ok(0),
+        "E" | "EAST" => Ok(1),
+        "S" | "SOUTH" => Ok(2),
+        "W" | "WEST" => Ok(3),
+        _ => Err(format!("Invalid dealer: '{}' (expected N, E, S, or W)", dealer)),
     }
 }
 
-fn parse_vulnerability(vul: &str) -> i32 {
+fn parse_vulnerability(vul: &str) -> Result<i32, String> {
     match vul.to_uppercase().replace('-', "").as_str() {
-        "NONE" | "" => 0,
-        "EW" | "EASTWEST" => 1,
-        "NS" | "NORTHSOUTH" => 2,
-        "BOTH" | "ALL" => 3,
-        _ => 0,
+        "NONE" | "" => Ok(0),
+        "EW" | "EASTWEST" => Ok(1),
+        "NS" | "NORTHSOUTH" => Ok(2),
+        "BOTH" | "ALL" => Ok(3),
+        _ => Err(format!(
+            "Invalid vulnerability: '{}' (expected None, NS, EW, or Both)",
+            vul
+        )),
     }
 }
 
@@ -566,5 +605,51 @@ mod card_content_tests {
         let content = req.convention_content.unwrap();
         assert_eq!(content.ns.as_deref(), Some("System type = 0\r\n"));
         assert!(content.ew.is_none());
+    }
+}
+
+#[cfg(test)]
+mod deal_field_tests {
+    use super::*;
+
+    #[test]
+    fn dealer_keeps_the_tolerance_real_clients_rely_on() {
+        for (given, seat) in [
+            ("N", 0), ("n", 0), ("North", 0), ("NORTH", 0),
+            ("E", 1), ("east", 1),
+            ("S", 2), ("South", 2),
+            ("W", 3), ("WEST", 3),
+        ] {
+            assert_eq!(parse_dealer(given), Ok(seat), "{given}");
+        }
+    }
+
+    #[test]
+    fn an_unrecognized_dealer_is_an_error_not_north() {
+        assert_eq!(
+            parse_dealer("G"),
+            Err("Invalid dealer: 'G' (expected N, E, S, or W)".to_string())
+        );
+        assert!(parse_dealer("").is_err());
+    }
+
+    #[test]
+    fn vulnerability_keeps_the_tolerance_real_clients_rely_on() {
+        for (given, vul) in [
+            ("None", 0), ("NONE", 0), ("", 0), ("-", 0),
+            ("EW", 1), ("E-W", 1), ("ew", 1), ("EastWest", 1), ("East-West", 1),
+            ("NS", 2), ("N-S", 2), ("NorthSouth", 2),
+            ("Both", 3), ("BOTH", 3), ("All", 3), ("all", 3),
+        ] {
+            assert_eq!(parse_vulnerability(given), Ok(vul), "{given}");
+        }
+    }
+
+    #[test]
+    fn an_unrecognized_vulnerability_is_an_error_not_none() {
+        assert_eq!(
+            parse_vulnerability("Love"),
+            Err("Invalid vulnerability: 'Love' (expected None, NS, EW, or Both)".to_string())
+        );
     }
 }
