@@ -94,6 +94,10 @@ pub struct AuctionResponse {
     /// ignores `conventionContent` and bids with the named cards.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub custom_cards: Vec<String>,
+    /// Things the client should know about a response that still succeeded,
+    /// such as a scenario that did not resolve and was bid with default cards.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meanings: Option<Vec<BidMeaning>>,
     /// Final contract (e.g. "4H", "3NT", "5CX"). Present whenever the

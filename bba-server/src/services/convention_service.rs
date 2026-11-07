@@ -1,6 +1,16 @@
 use regex::Regex;
 use tracing::{info, warn};
 
+/// The convention cards a scenario implies.
+pub struct ScenarioConventions {
+    pub ns: String,
+    pub ew: String,
+    /// False when the scenario's .pbs file could not be read, so both cards are
+    /// defaults standing in for whatever it would have said. A scenario that was
+    /// read and names no card is resolved: the defaults are what it implies.
+    pub resolved: bool,
+}
+
 /// Fetches convention cards (.bbsa) and scenario files (.pbs) from GitHub.
 pub struct ConventionService {
     client: reqwest::Client,
@@ -56,34 +66,41 @@ impl ConventionService {
     pub async fn get_conventions_for_scenario(
         &self,
         scenario: &str,
-    ) -> (String, String) {
-        match self.get_convention_cards_from_pbs(scenario).await {
-            (Some(ns), Some(ew)) => (ns, ew),
-            (Some(ns), None) => (ns, self.default_ew_card.clone()),
-            (None, Some(ew)) => (self.default_ns_card.clone(), ew),
-            (None, None) => (self.default_ns_card.clone(), self.default_ew_card.clone()),
+    ) -> ScenarioConventions {
+        let cards = self.get_convention_cards_from_pbs(scenario).await;
+        let resolved = cards.is_some();
+        let (ns, ew) = cards.unwrap_or((None, None));
+        ScenarioConventions {
+            ns: ns.unwrap_or_else(|| self.default_ns_card.clone()),
+            ew: ew.unwrap_or_else(|| self.default_ew_card.clone()),
+            resolved,
         }
     }
 
-    async fn get_convention_cards_from_pbs(&self, scenario: &str) -> (Option<String>, Option<String>) {
+    /// The cards a scenario's .pbs file names, or `None` if the file could not
+    /// be read.
+    async fn get_convention_cards_from_pbs(
+        &self,
+        scenario: &str,
+    ) -> Option<(Option<String>, Option<String>)> {
         let url = format!("{}/pbs-release/{}.pbs", self.github_raw_base_url, scenario);
 
         let resp = match self.client.get(&url).send().await {
             Ok(r) => r,
             Err(e) => {
                 warn!("Error fetching PBS file for {}: {}", scenario, e);
-                return (None, None);
+                return None;
             }
         };
 
         if !resp.status().is_success() {
             warn!("PBS file not found for {} (HTTP {})", scenario, resp.status());
-            return (None, None);
+            return None;
         }
 
         let content = match resp.text().await {
             Ok(c) => c,
-            Err(_) => return (None, None),
+            Err(_) => return None,
         };
 
         // Try new format: convention-card-ns and convention-card-ew
@@ -100,7 +117,7 @@ impl ConventionService {
                 ew.as_deref().unwrap_or("(default)"),
                 scenario
             );
-            return (ns, ew);
+            return Some((ns, ew));
         }
 
         // Fall back to old format: convention-card (NS only)
@@ -112,12 +129,12 @@ impl ConventionService {
                     "Found convention card '{}' (old format) for scenario '{}'",
                     value, scenario
                 );
-                return (Some(value), None);
+                return Some((Some(value), None));
             }
         }
 
         info!("No convention card specified for scenario '{}', using defaults", scenario);
-        (None, None)
+        Some((None, None))
     }
 
     /// Get the list of available scenarios from GitHub.
@@ -156,5 +173,81 @@ impl ConventionService {
 
         scenarios.sort();
         Ok(scenarios)
+    }
+}
+
+#[cfg(test)]
+mod scenario_tests {
+    use super::*;
+    use axum::routing::get;
+    use axum::Router;
+
+    /// A stand-in for the raw GitHub host, serving two .pbs files.
+    async fn pbs_host() -> String {
+        let app = Router::new()
+            .route(
+                "/pbs-release/Named.pbs",
+                get(|| async { "convention-card-ns: NS-Card\nconvention-card-ew: EW-Card\n" }),
+            )
+            .route(
+                "/pbs-release/OldFormat.pbs",
+                get(|| async { "# convention-card: Old-Card\n" }),
+            )
+            .route(
+                "/pbs-release/NoCards.pbs",
+                get(|| async { "dealer north\n" }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        format!("http://{addr}")
+    }
+
+    fn service(base: &str) -> ConventionService {
+        ConventionService::new(base, "Default-NS", "Default-EW")
+    }
+
+    #[tokio::test]
+    async fn a_scenario_that_names_its_cards_is_resolved() {
+        let got = service(&pbs_host().await)
+            .get_conventions_for_scenario("Named")
+            .await;
+        assert_eq!((got.ns.as_str(), got.ew.as_str()), ("NS-Card", "EW-Card"));
+        assert!(got.resolved);
+    }
+
+    #[tokio::test]
+    async fn a_scenario_naming_only_one_card_is_resolved() {
+        let got = service(&pbs_host().await)
+            .get_conventions_for_scenario("OldFormat")
+            .await;
+        assert_eq!((got.ns.as_str(), got.ew.as_str()), ("Old-Card", "Default-EW"));
+        assert!(got.resolved);
+    }
+
+    #[tokio::test]
+    async fn a_scenario_that_names_no_card_is_resolved_to_the_defaults() {
+        let got = service(&pbs_host().await)
+            .get_conventions_for_scenario("NoCards")
+            .await;
+        assert_eq!((got.ns.as_str(), got.ew.as_str()), ("Default-NS", "Default-EW"));
+        assert!(got.resolved);
+    }
+
+    #[tokio::test]
+    async fn a_scenario_with_no_file_is_not_resolved() {
+        let got = service(&pbs_host().await)
+            .get_conventions_for_scenario("No_Such_Scenario")
+            .await;
+        assert_eq!((got.ns.as_str(), got.ew.as_str()), ("Default-NS", "Default-EW"));
+        assert!(!got.resolved);
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_host_is_not_resolved() {
+        let got = service("http://127.0.0.1:1")
+            .get_conventions_for_scenario("Named")
+            .await;
+        assert!(!got.resolved);
     }
 }
