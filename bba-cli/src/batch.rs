@@ -11,9 +11,11 @@ use bridge_encodings::pbn::{prevailing_newline, split_lines, PbnDocument};
 use bridge_parsers::{Board, Deal, Direction};
 use epbot_core::bba_hash::{self, HandSuits};
 use epbot_core::score::{self, Strain};
-use epbot_core::{generate_auction_with_options, ConventionCard, Scoring};
+use epbot_core::{generate_auction_with_options, AuctionResult, ConventionCard, Scoring};
 use log::{debug, error, info, warn};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
 /// Statistics from batch processing
 #[derive(Debug, Default)]
@@ -36,6 +38,9 @@ pub struct OutputConfig {
     pub single_dummy: bool,
     /// Note every call's meaning (short | extended), not only alerts.
     pub all_meanings: bool,
+    /// Boards bid at the same time. EPBot is thread-safe from 8744, and every
+    /// auction creates its own instances, so the output does not depend on this.
+    pub threads: usize,
 }
 
 fn direction_to_int(dir: Direction) -> i32 {
@@ -217,28 +222,42 @@ pub fn process_pbn_file(
         ew: resolve_system_name(config.ew_system_name.as_deref(), &ew_card, 1, "E-W"),
     };
 
-    // Process each deal
-    let mut results = Vec::new();
-
-    for (idx, board) in boards.iter().enumerate() {
+    // Bid every deal. Workers take the next unbid board from a shared counter and
+    // results are stored by index, so the output order never depends on timing.
+    let threads = config.threads.clamp(1, boards.len().max(1));
+    info!("Bidding on {} thread(s)", threads);
+    let next = AtomicUsize::new(0);
+    let slots: Vec<OnceLock<AuctionResult>> = boards.iter().map(|_| OnceLock::new()).collect();
+    let bid_board = |board: &Board| {
         let dealer = board.dealer.unwrap_or(Direction::North);
-        let vul = vulnerability_to_epbot(&board.vulnerable);
-        let deal_str = format_deal_pbn(&board.deal);
-
-        stats.deals_processed += 1;
-
-        let result = generate_auction_with_options(
-            &deal_str,
+        generate_auction_with_options(
+            &format_deal_pbn(&board.deal),
             direction_to_int(dealer),
-            vul,
+            vulnerability_to_epbot(&board.vulnerable),
             config.scoring,
             Some(&ns_card),
             Some(&ew_card),
             auction_prefix,
             config.single_dummy,
             config.all_meanings,
-        );
+        )
+    };
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| loop {
+                let idx = next.fetch_add(1, Ordering::Relaxed);
+                let Some(board) = boards.get(idx) else { break };
+                let _ = slots[idx].set(bid_board(board));
+            });
+        }
+    });
+    let results: Vec<AuctionResult> = slots
+        .into_iter()
+        .map(|slot| slot.into_inner().expect("every board is bid exactly once"))
+        .collect();
 
+    for (idx, result) in results.iter().enumerate() {
+        stats.deals_processed += 1;
         if result.success {
             stats.auctions_generated += 1;
         } else {
@@ -247,8 +266,6 @@ pub fn process_pbn_file(
                 error!("Game {}: {}", idx + 1, err);
             }
         }
-
-        results.push(result);
     }
 
     if !dry_run {

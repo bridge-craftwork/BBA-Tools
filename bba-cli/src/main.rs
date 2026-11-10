@@ -80,6 +80,13 @@ struct Args {
     /// [Scoring] tag.
     #[arg(long, value_name = "MODE", default_value = "MP", value_parser = parse_scoring_arg)]
     scoring: epbot_core::Scoring,
+
+    /// Boards to bid at the same time. Defaults to the number of CPU cores, at
+    /// most 8 (more was slower on a 12-core M-series Mac, whose extra cores are
+    /// efficiency cores). The output is identical for any value; 1 bids one
+    /// board at a time.
+    #[arg(long, short = 'j', value_name = "N", value_parser = clap::value_parser!(u16).range(1..))]
+    threads: Option<u16>,
 }
 
 fn parse_scoring_arg(s: &str) -> std::result::Result<epbot_core::Scoring, String> {
@@ -148,6 +155,10 @@ fn main() -> Result<()> {
         scoring: args.scoring,
         single_dummy: args.single_dummy,
         all_meanings: args.all_meanings,
+        threads: args
+            .threads
+            .map(usize::from)
+            .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get().min(8))),
     };
 
     if args.single_dummy {

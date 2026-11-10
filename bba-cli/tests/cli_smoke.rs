@@ -81,8 +81,15 @@ fn temp_path(name: &str) -> PathBuf {
 /// Spawn bba-cli on `input` with single-dummy enabled and compare its
 /// normalized output to `golden`. Panics on divergence with a diff path.
 fn run_and_compare(label: &str, input: PathBuf, golden: PathBuf) {
+    run_and_compare_on(label, input, golden, "8");
+}
+
+/// As `run_and_compare`, bidding `threads` boards at a time. The goldens were
+/// produced one board at a time, so a threaded run matching them byte for byte
+/// shows EPBot (bidding and single-dummy) is thread-safe for our use.
+fn run_and_compare_on(label: &str, input: PathBuf, golden: PathBuf, threads: &str) {
     let tmp = temp_path(label);
-    let status = run_bba_cli(&input, &tmp, &["--single-dummy"]);
+    let status = run_bba_cli(&input, &tmp, &["--single-dummy", "--threads", threads]);
     assert!(status.success(), "bba-cli ({label}) exited with {status}");
 
     let actual = fs::read_to_string(&tmp).expect("read produced PBN");
@@ -116,7 +123,18 @@ fn fixture_deals_with_single_dummy_match_golden() {
     );
 }
 
-/// Slow regression test: 500-board PBN. Together with `slow_1N`, covers
+/// The fast fixture bid one board at a time must match the same golden.
+#[test]
+fn fixture_deals_one_thread_match_golden() {
+    run_and_compare_on(
+        "fast-j1",
+        fixture_path("deals.pbn"),
+        fixture_path("expected/deals-with-sd.pbn"),
+        "1",
+    );
+}
+
+/// Slow regression test: 500-board PBN, bid on 8 threads. Together with `slow_1N`, covers
 /// 1000 deals. Catches subtle bidder drift (e.g., EPBot version bumps) and
 /// memory issues that 8 deals can't surface. Excluded from default test
 /// runs because it adds ~3s; opt in with `cargo test -- --ignored`.
