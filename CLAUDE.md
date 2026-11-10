@@ -22,7 +22,18 @@ From Edward Piwowar's NativeAOT build. Located in `epbot-libs/`:
 - `macos/arm64/libEPBot.dylib`
 - `windows/x64/EPBot.dll`, `windows/arm64/EPBot.dll` (untested — proper AOT builds first shipped in v2.2.4)
 
-Current build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (committed 2026-05-04). The "8740" label and file dates are NOT reliable identifiers — an earlier 2026-05-03 build carries the same label and leaked into installs, and Edward's repo now holds a *newer* 2026-05-07 rebuild that also reports 8740 and bids differently from ours. Identify the patched build by sha256 (fingerprints under "EPBot 25-day uptime crash" below). See that section for what the patch fixes.
+Current build: **EPBot 8744** (2026-11-09), from the `EPBot-libraries-8744` release of [EdwardPiwowar/Native-libraries](https://github.com/EdwardPiwowar/Native-libraries/releases) (zip sha256 `910ba6b27546eba5fa6ebda4f4572c91ae41e1ad95eea73ed417f985c88df595`, CI build of commit `3479119`). It self-reports **8744**, so unlike the 8740 era the label now means something — still verify by sha256. 8744 is the first thread-safe build ([BBA#1428](https://github.com/EdwardPiwowar/BBA/issues/1428)): through bba-server at `MAX_CONCURRENCY=8` it gave 0 wrong auctions in 3,000, where the previous 8740 dylib gave 589 (20%). Harness and results in [tools/epbot-threadsafety/](tools/epbot-threadsafety/README.md). It moved bidding a lot (vs our 8740: 160/500 auctions differ on `1N.pbn`, 223/500 on `Fourth_Suit_Forcing.pbn`); the native build bids identically to the 8744 `EPBotNET.dll` on all 1,000 slow-fixture boards, so that is the engine, not a bad build. The goldens in `tests/fixtures/expected/` pin 8744. Known 8744 bug that does not affect us: reusing one EPBot instance across deals changes some auctions (three fields not reset in `new_hand`); epbot-core always creates fresh instances.
+
+8744 fingerprints (sha256 / bytes, as committed here):
+- macOS arm64 `libEPBot.dylib`: `70af53b8334d8a78205f5fa4aad5d409ac330fd57648a5d6e67d0064c5ab8db0` (3,889,824 B)
+- Linux x64 `libEPBot.so`: `b973bdcce627f200c819cb8169b92054f6a83e38532786a7fe2816d9a8de6118` (4,084,760 B)
+- Linux arm64 `libEPBot.so`: `4ea5e5b5c40e2e68e2a51ae170368b50030013839dd20a84ea2e0b6a89c72cde` (4,080,584 B)
+- Windows x64 `EPBot.dll`: `9c41b3f3aaf20227aec80796bd5bbdd477807d8256b5f13c457821478bdf043c` (3,995,648 B)
+- Windows arm64 `EPBot.dll`: `23c11afa5ac8e3c39881bcf7463ebac2d99a9ec060d9ff1b53bd07a7627e25f2` (3,931,136 B)
+
+The 25-day uptime fix carries forward (8744 is built from Edward's current source, which includes the `Environment.TickCount` change). The history below is the 8740 era, kept for reference — "ours"/"patched" there means the 2026-05-04 8740 build that 8744 replaced.
+
+Previous build: EPBot 8740, Edward's patched build, shipped in BBA-Tools v2.2.4 (committed 2026-05-04). The "8740" label and file dates are NOT reliable identifiers — an earlier 2026-05-03 build carries the same label and leaked into installs, and Edward's repo now holds a *newer* 2026-05-07 rebuild that also reports 8740 and bids differently from ours. Identify the patched build by sha256 (fingerprints under "EPBot 25-day uptime crash" below). See that section for what the patch fixes.
 
 ### EPBot 25-day uptime crash
 
