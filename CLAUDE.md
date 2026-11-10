@@ -96,6 +96,7 @@ It fixes a real crash ThorvaldAagaard reported (2026-05-08→10): pointer-return
   - v2.2.5: `aab58732ea7bd3e971080a727e558fd85c1bfc525be7a8759f54647d1a468ce0`
   - v2.3.2: `455ffd7921eb337ae5b18de8b384f7efa7ef035a4ef2c0ef59d467bddff49266` (shipped bba-cli `9a5e3a177cc25feec8899374829e727280d76b04203d9135bd94f818602bbc4a`) — installed to `/Applications/Bridge Utilities/` on Rick's Mac 2026-07-30, replacing bba-cli 0.2.3
   - v2.4.0: `2174c35c99f5a793996be163784c148f3fdc728752af1deb68bc1c1293c532f6` (shipped bba-cli `f51bf66ee31ea195c90f7a2bd4330872a22647fb40f7d40b9803223176cc9778`, bba-server `09baca7f0e6aa1443e1bb37a1206727e0f7cd63d59bebc25e318cf6e74a12d4d`; DMG `6a13f05e5e2e1b40b52891c947c1af5dce2409886af9676defe14afd8913621b`) — notarized. Installed to `/Applications/Bridge Utilities/` on Rick's Mac 2026-09-22, replacing the v2.3.2 pair (kept as `bba-cli.bak-20260922` / `libEPBot.dylib.bak-20260922`); verified by sha against the DMG and by bidding a real file. **David's Mac is still on v2.3.2.** bba-cli 0.3.0 is the first release whose PBN output preserves the input's tags (#26), so the first pipeline run after each install rewrites `bba/` wholesale.
+  - v2.7.0 (**EPBot 8744**): dylib `b94644adeedf6a62e6da94f2bea94a62c30e98c286232289c09c36bad42a89d8` (shipped bba-cli 0.4.0 `5006a0c54efad4f535399bd1c5a6394894e9c8aa02bfbbcae07f09beafe5d9be`, bba-server 2.4.0 `7c56b156e9c718899ca9f9d3d971aa66445761ec85db8cc997f6a3b52e516e42`; DMG `32f6c0d4e4179385a0b5b3fcf8ed6f778f67837ce0bd7327e8ea3f55bdac25a8`) — notarized. Installed on Rick's Mac 2026-11-09, replacing v2.4.0 (kept as `bba-cli.bak-20261109` / `libEPBot.dylib.bak-20261109`); startup line reads `BBA-CLI v0.4.0 (EPBot 8744)` and it reproduces the 8744 `1N.pbn` golden byte for byte. **David's Mac still needs it** (last known: v2.3.2). The first pipeline run on 8744 will change a large share of auctions — that is the engine, not a fault.
 - The Linux `.so` is *not* re-signed, so installs there do match `e0e48200…` (the droplet is a sha-exact match).
 
 *Known-bad unpatched macOS builds seen in the wild (each overflows past ~25 days; all came from direct hand-offs, never a signed release — the repo only ever held two macOS dylibs, the original `b434aa7a…` and the patched `ded470bf…`):*
@@ -220,7 +221,7 @@ Note bba-server emits its **own** CORS headers (its Caddy stanza is a bare
 
 Automatic reboots are disabled (`/etc/apt/apt.conf.d/51no-auto-reboot`). Unattended security upgrades still install but won't reboot.
 
-**Important:** Until v2.2.4's EPBot patch is verified (see "EPBot 25-day uptime crash" above), the droplet WILL crash again ~25 days after each boot. Track uptime: `ssh root@146.190.135.172 'uptime -s; uptime'`. Next predicted failure window: 2026-05-29 ~21:18 UTC if the v2.2.4 patch didn't take.
+**Uptime:** the 25-day overflow is fixed (proven on 8740 by a 57-day clean run; the fix carries into 8744). Since 2026-11-09 (v2.7.0) the droplet runs EPBot 8744, `libEPBot.so` `b973bdcc…`; the 8740 files are kept as `*.prev-v2.6.0` in `/opt/bba-server/`.
 
 **Before applying OS updates:**
 1. Check for pending updates: `ssh root@146.190.135.172 'apt list --upgradable'`
