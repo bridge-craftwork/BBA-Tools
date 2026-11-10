@@ -94,6 +94,15 @@ string Bid(string pbn, int dealer, int vul, object[]? reuse = null)
 var sw = Stopwatch.StartNew();
 var reference = deals.Select(d => { try { return Bid(d.pbn, d.dealer, d.vul); } catch (Exception e) { return "EXC " + (e.InnerException ?? e).GetType().Name; } }).ToArray();
 Console.WriteLine($"Sequential: {sw.ElapsedMilliseconds} ms, {reference.Count(r => r.StartsWith("EXC"))} exceptions");
+// DUMP=<file> writes the sequential auctions, one deal per line, as bba-cli spells bids
+// (Pass, X, XX, 1C..7NT), to compare an engine build against a native library's output.
+string Decode(string code) => int.Parse(code) switch
+{
+    0 => "Pass", 1 => "X", 2 => "XX",
+    var c => $"{(c - 5) / 5 + 1}{new[] { "C", "D", "H", "S", "NT" }[(c - 5) % 5]}",
+};
+if (Environment.GetEnvironmentVariable("DUMP") is { Length: > 0 } dump)
+    File.WriteAllLines(dump, reference.Select(r => r.StartsWith("EXC") ? r : string.Join(" ", r.Split(' ').Select(Decode))));
 
 if (pool)
 {
